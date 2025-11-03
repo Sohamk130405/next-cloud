@@ -17,40 +17,15 @@ export async function POST(request: Request) {
     }
 
     // Get user from database
-    let user = await db.query.users.findFirst({
+    const user = await db.query.users.findFirst({
       where: eq(users.clerkId, userId),
     });
 
     if (!user) {
-      console.log("[v0] User not found, initializing...", userId);
-      const initResponse = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-        }/api/auth/user-init`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        }
+      return new Response(
+        JSON.stringify({ error: "User initialization failed" }),
+        { status: 500 }
       );
-
-      if (!initResponse.ok) {
-        return new Response(
-          JSON.stringify({ error: "Failed to initialize user" }),
-          { status: 500 }
-        );
-      }
-
-      user = await db.query.users.findFirst({
-        where: eq(users.clerkId, userId),
-      });
-
-      if (!user) {
-        return new Response(
-          JSON.stringify({ error: "User initialization failed" }),
-          { status: 500 }
-        );
-      }
     }
 
     const userGoogleToken = await db.query.googleTokens.findFirst({
