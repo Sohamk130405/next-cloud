@@ -4,7 +4,6 @@ import type React from "react";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,14 +15,13 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function UploadPage() {
   const router = useRouter();
-  const { user } = useUser();
   const { toast } = useToast();
 
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -40,7 +38,7 @@ export default function UploadPage() {
   };
 
   const handleUpload = async () => {
-    if (!file || !password || password !== confirmPassword) {
+    if (!file || !password) {
       setError("Please select a file and enter matching passwords");
       return;
     }
@@ -49,6 +47,39 @@ export default function UploadPage() {
       setError("Password must be at least 8 characters");
       return;
     }
+
+    // Verify password before uploading
+    setIsVerifyingPassword(true);
+    try {
+      const verifyResponse = await fetch("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json();
+        throw new Error(errorData.error || "Failed to verify password");
+      }
+
+      const verifyData = await verifyResponse.json();
+
+      if (!verifyData.isValid) {
+        setError(
+          "Incorrect password. Please enter your encryption password from settings."
+        );
+        setIsVerifyingPassword(false);
+        return;
+      }
+    } catch (err) {
+      console.error("[v0] Password verification error:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to verify password"
+      );
+      setIsVerifyingPassword(false);
+      return;
+    }
+    setIsVerifyingPassword(false);
 
     setIsUploading(true);
     setError("");
@@ -72,6 +103,8 @@ export default function UploadPage() {
       formData.append("salt", salt);
       formData.append("authTag", authTag);
       formData.append("encryptedBuffer", encryptedBlob);
+      formData.append("originalMimeType", file.type);
+      formData.append("originalFileName", file.name);
 
       // Upload to server
       const response = await fetch("/api/files/upload", {
@@ -84,7 +117,7 @@ export default function UploadPage() {
         throw new Error(errorData.error || "Upload failed");
       }
 
-      const result = await response.json();
+      await response.json();
 
       toast({
         title: "Success",
@@ -94,7 +127,6 @@ export default function UploadPage() {
       // Reset form
       setFile(null);
       setPassword("");
-      setConfirmPassword("");
 
       // Redirect to dashboard
       router.push("/dashboard");
@@ -183,27 +215,10 @@ export default function UploadPage() {
                 className="mt-2"
               />
               <p className="text-xs text-muted-foreground mt-2">
-                You'll need this password to decrypt and view the file
+                Enter the password you set before or set new one from the
+                settings
               </p>
             </div>
-
-            <div>
-              <Label htmlFor="confirm" className="text-foreground">
-                Confirm Password
-              </Label>
-              <Input
-                id="confirm"
-                type="password"
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-2"
-              />
-            </div>
-
-            {password && confirmPassword && password !== confirmPassword && (
-              <p className="text-xs text-destructive">Passwords do not match</p>
-            )}
           </div>
         </Card>
       )}
@@ -212,17 +227,19 @@ export default function UploadPage() {
         <Button
           variant="outline"
           onClick={() => setFile(null)}
-          disabled={!file || isUploading}
+          disabled={!file || isUploading || isVerifyingPassword}
         >
           Cancel
         </Button>
         <Button
           onClick={handleUpload}
-          disabled={
-            !file || !password || password !== confirmPassword || isUploading
-          }
+          disabled={!file || !password || isUploading || isVerifyingPassword}
         >
-          {isUploading ? "Uploading..." : "Upload & Encrypt"}
+          {isVerifyingPassword
+            ? "Verifying Password..."
+            : isUploading
+            ? "Uploading..."
+            : "Upload & Encrypt"}
         </Button>
       </div>
     </div>

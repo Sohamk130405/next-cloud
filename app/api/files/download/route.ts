@@ -1,16 +1,22 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { files, users } from "@/db/schema";
+import { files, users, shareLinks } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { downloadFromGoogleDrive } from "@/lib/google-drive";
+import {
+  logActivity,
+  getClientIp,
+  getUserAgent,
+} from "@/lib/utils/activity-logger";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
+
     if (!userId) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      return new Response(JSON.stringify({ error: "Unauthorized Access" }), {
         status: 401,
       });
     }
@@ -25,7 +31,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const { fileId } = await request.json();
+    const { fileId, token } = await request.json();
 
     if (!fileId) {
       return new Response(JSON.stringify({ error: "Missing file ID" }), {
@@ -33,10 +39,53 @@ export async function POST(request: Request) {
       });
     }
 
-    // Get file record
-    const fileRecord = await db.query.files.findFirst({
-      where: and(eq(files.id, fileId), eq(files.userId, user.id)),
-    });
+    let fileRecord;
+    if (token) {
+      // Public share download - verify share token first
+      const shareRecord = await db.query.shareLinks.findFirst({
+        where: eq(shareLinks.shareToken, token),
+      });
+
+      if (!shareRecord) {
+        return new Response(JSON.stringify({ error: "Invalid share token" }), {
+          status: 404,
+        });
+      }
+
+      // Check expiry and download limit
+      if (
+        shareRecord.expiresAt &&
+        new Date(shareRecord.expiresAt) < new Date()
+      ) {
+        return new Response(JSON.stringify({ error: "Share link expired" }), {
+          status: 410,
+        });
+      }
+
+      if (
+        shareRecord.maxDownloads &&
+        shareRecord.downloadCount! >= shareRecord.maxDownloads
+      ) {
+        return new Response(
+          JSON.stringify({ error: "Download limit reached" }),
+          { status: 410 }
+        );
+      }
+
+      fileRecord = await db.query.files.findFirst({
+        where: eq(files.id, shareRecord.fileId),
+      });
+
+      await db
+        .update(shareLinks)
+        .set({ downloadCount: (shareRecord.downloadCount || 0) + 1 })
+        .where(eq(shareLinks.id, shareRecord.id));
+    } else {
+      // Authenticated user download
+      fileRecord = await db.query.files.findFirst({
+        where: and(eq(files.id, fileId), eq(files.userId, user.id)),
+      });
+    }
 
     if (!fileRecord) {
       return new Response(JSON.stringify({ error: "File not found" }), {
@@ -61,6 +110,16 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // Log activity
+    await logActivity({
+      userId: user.id,
+      actionType: "download",
+      fileId: fileRecord.id,
+      description: `Downloaded file: ${fileRecord.fileName}`,
+      ipAddress: getClientIp(request),
+      userAgent: getUserAgent(request),
+    });
 
     return new Response(
       JSON.stringify({

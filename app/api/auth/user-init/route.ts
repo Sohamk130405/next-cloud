@@ -4,6 +4,11 @@ import { users, userKeys } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { generateSalt, hashPassword } from "@/lib/crypto-utils";
+import {
+  logActivity,
+  getClientIp,
+  getUserAgent,
+} from "@/lib/utils/activity-logger";
 
 export const runtime = "nodejs";
 
@@ -54,6 +59,15 @@ export async function POST(request: Request) {
       userId: newUserId,
       salt: btoa(String.fromCharCode(...salt)),
       keyHash,
+    });
+
+    // Log activity for new user login
+    await logActivity({
+      userId: newUserId,
+      actionType: "login",
+      description: "User logged in for the first time",
+      ipAddress: getClientIp(request),
+      userAgent: getUserAgent(request),
     });
 
     return new Response(

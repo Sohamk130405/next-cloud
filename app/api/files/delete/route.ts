@@ -3,6 +3,11 @@ import { db } from "@/lib/db";
 import { files, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { deleteFromGoogleDrive } from "@/lib/google-drive";
+import {
+  logActivity,
+  getClientIp,
+  getUserAgent,
+} from "@/lib/utils/activity-logger";
 
 export async function DELETE(request: Request) {
   try {
@@ -54,6 +59,21 @@ export async function DELETE(request: Request) {
         console.error("[v0] Failed to delete from Google Drive:", error);
         // Continue with database deletion even if Drive deletion fails
       }
+    }
+
+    // Log activity BEFORE deleting from database to avoid foreign key issues
+    try {
+      await logActivity({
+        userId: user.id,
+        actionType: "delete",
+        fileId,
+        description: `Deleted file: ${fileRecord.fileName}`,
+        ipAddress: getClientIp(request),
+        userAgent: getUserAgent(request),
+      });
+    } catch (logError) {
+      console.error("[v0] Failed to log activity:", logError);
+      // Don't fail the delete operation if logging fails
     }
 
     // Delete file record from database

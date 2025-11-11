@@ -3,6 +3,11 @@ import { db } from "@/lib/db";
 import { users, files } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { deleteFromGoogleDrive } from "@/lib/google-drive";
+import {
+  logActivity,
+  getClientIp,
+  getUserAgent,
+} from "@/lib/utils/activity-logger";
 
 export const runtime = "nodejs";
 
@@ -40,6 +45,15 @@ export async function DELETE(request: Request) {
         }
       }
     }
+
+    // Log activity before deletion
+    await logActivity({
+      userId: user.id,
+      actionType: "account_delete",
+      description: `Account deleted along with ${userFiles.length} files`,
+      ipAddress: getClientIp(request),
+      userAgent: getUserAgent(request),
+    });
 
     // Delete user (cascades to all related records via database constraints)
     await db.delete(users).where(eq(users.id, user.id));
