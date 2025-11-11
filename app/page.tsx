@@ -1,8 +1,12 @@
+"use client";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Lock, Shield, CloudOff, ArrowRight } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
 
 export default function LandingPage() {
+  const { isSignedIn, isLoaded } = useUser();
+
   return (
     <main className="min-h-screen bg-background">
       {/* Navigation */}
@@ -13,19 +17,29 @@ export default function LandingPage() {
             <span className="text-xl font-bold text-foreground">VaultSafe</span>
           </div>
           <div className="flex gap-4">
-            <Link href="/sign-in">
-              <Button
-                variant="ghost"
-                className="text-foreground hover:bg-muted"
-              >
-                Sign In
-              </Button>
-            </Link>
-            <Link href="/sign-up">
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                Get Started
-              </Button>
-            </Link>
+            {isLoaded && isSignedIn ? (
+              <Link href="/dashboard">
+                <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/sign-in">
+                  <Button
+                    variant="ghost"
+                    className="text-foreground hover:bg-muted"
+                  >
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/sign-up">
+                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    Get Started
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>

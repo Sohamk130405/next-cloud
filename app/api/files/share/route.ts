@@ -2,6 +2,11 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { users, files, shareLinks } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import {
+  logActivity,
+  getClientIp,
+  getUserAgent,
+} from "@/lib/utils/activity-logger";
 
 export async function POST(request: Request) {
   try {
@@ -46,6 +51,19 @@ export async function POST(request: Request) {
       shareToken,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
       maxDownloads,
+    });
+
+    // Log activity
+    await logActivity({
+      userId: user.id,
+      actionType: "share",
+      fileId,
+      shareId,
+      description: `Shared file: ${
+        fileRecord.fileName
+      } (Token: ${shareToken.substring(0, 8)}...)`,
+      ipAddress: getClientIp(request),
+      userAgent: getUserAgent(request),
     });
 
     return Response.json(

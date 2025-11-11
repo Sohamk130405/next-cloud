@@ -3,6 +3,11 @@ import { db } from "@/lib/db";
 import { files, users, shareLinks } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { downloadFromGoogleDrive } from "@/lib/google-drive";
+import {
+  logActivity,
+  getClientIp,
+  getUserAgent,
+} from "@/lib/utils/activity-logger";
 
 export const runtime = "nodejs";
 
@@ -105,6 +110,16 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // Log activity
+    await logActivity({
+      userId: user.id,
+      actionType: "download",
+      fileId: fileRecord.id,
+      description: `Downloaded file: ${fileRecord.fileName}`,
+      ipAddress: getClientIp(request),
+      userAgent: getUserAgent(request),
+    });
 
     return new Response(
       JSON.stringify({

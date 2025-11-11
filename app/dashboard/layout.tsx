@@ -17,6 +17,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { href: "/dashboard", label: "My Files", icon: FileText },
@@ -95,10 +96,10 @@ export default function DashboardLayout({
         {/* User Profile */}
         <div className="p-4 border-t border-sidebar-border">
           {sidebarOpen && (
-            <Card className="p-4 bg-sidebar-accent/50 border-sidebar-border">
+            <Card className="p-4 bg-sidebar-primary border-sidebar-border">
               <div className="flex items-center justify-between gap-3">
                 <UserButton />
-                <span className="text-sm font-medium">Account</span>
+                <span className="text-sm font-medium text-primary-foreground">Account</span>
               </div>
             </Card>
           )}
@@ -107,11 +108,14 @@ export default function DashboardLayout({
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
-        <div className="bg-background/50 backdrop-blur-sm sticky top-0 z-10 border-b border-border p-6">
-          <h1 className="text-2xl font-bold text-foreground">SecureVault</h1>
-          <p className="text-sm text-muted-foreground">
-            Encrypted media storage powered by your Google Drive
-          </p>
+        <div className="bg-background/50 backdrop-blur-sm sticky top-0 z-10 border-b border-border p-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">SecureVault</h1>
+            <p className="text-sm text-muted-foreground">
+              Encrypted media storage powered by your Google Drive
+            </p>
+          </div>
+          <ThemeToggle />
         </div>
         <div className="p-6">{children}</div>
       </main>

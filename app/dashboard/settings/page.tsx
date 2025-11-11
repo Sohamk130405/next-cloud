@@ -27,7 +27,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
 
   const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [oldPassword, setOldPassword] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [isCheckingGoogle, setIsCheckingGoogle] = useState(true);
@@ -52,7 +52,7 @@ export default function SettingsPage() {
   };
 
   const handleChangePassword = async () => {
-    if (!newPassword || newPassword !== confirmNewPassword) {
+    if (!newPassword || !oldPassword) {
       toast({
         title: "Error",
         description: "Passwords must match",
@@ -75,7 +75,7 @@ export default function SettingsPage() {
       const response = await fetch("/api/settings/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword }),
+        body: JSON.stringify({ newPassword, oldPassword }),
       });
 
       if (!response.ok) throw new Error("Failed to change password");
@@ -86,7 +86,7 @@ export default function SettingsPage() {
           "Password updated successfully. All files will use the new password.",
       });
       setNewPassword("");
-      setConfirmNewPassword("");
+      setOldPassword("");
     } catch (error) {
       toast({
         title: "Error",
@@ -274,36 +274,25 @@ export default function SettingsPage() {
 
           <div>
             <Label
-              htmlFor="confirm-password"
+              htmlFor="old-password"
               className="text-foreground font-medium"
             >
-              Confirm New Password
+              Old Encryption Password
             </Label>
             <Input
-              id="confirm-password"
+              id="old-password"
               type="password"
-              placeholder="Confirm new password"
-              value={confirmNewPassword}
-              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              placeholder="Enter old password"
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
               className="mt-2 bg-card border-border"
               disabled={isSaving}
             />
           </div>
 
-          {newPassword &&
-            confirmNewPassword &&
-            newPassword !== confirmNewPassword && (
-              <p className="text-xs text-destructive flex items-center gap-2">
-                <AlertCircle className="w-3 h-3" />
-                Passwords do not match
-              </p>
-            )}
-
           <Button
             onClick={handleChangePassword}
-            disabled={
-              !newPassword || newPassword !== confirmNewPassword || isSaving
-            }
+            disabled={!newPassword || !oldPassword || isSaving}
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {isSaving ? "Updating..." : "Update Password"}

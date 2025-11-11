@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import {
   LineChart,
   Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -15,6 +17,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  AreaChart,
+  Area,
 } from "recharts";
 import {
   ChartContainer,
@@ -29,6 +33,9 @@ import {
   Eye,
   HardDrive,
   File,
+  TrendingUp,
+  Activity,
+  Lock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,12 +53,12 @@ interface StatsData {
   }>;
 }
 
-interface Activity {
+interface ActivityLog {
   id: string;
-  action_type: string;
-  file_id: string | null;
+  actionType: string;
+  fileId: string | null;
   description: string | null;
-  created_at: string;
+  createdAt: string;
 }
 
 const actionIcons: Record<string, any> = {
@@ -60,6 +67,10 @@ const actionIcons: Record<string, any> = {
   delete: Trash2,
   share: Share2,
   view: Eye,
+  login: Eye,
+  logout: Eye,
+  password_change: Lock,
+  account_delete: Trash2,
 };
 
 const actionColors: Record<string, string> = {
@@ -68,6 +79,25 @@ const actionColors: Record<string, string> = {
   delete: "bg-red-500/10 text-red-700",
   share: "bg-purple-500/10 text-purple-700",
   view: "bg-gray-500/10 text-gray-700",
+  login: "bg-cyan-500/10 text-cyan-700",
+  logout: "bg-amber-500/10 text-amber-700",
+  password_change: "bg-indigo-500/10 text-indigo-700",
+  account_delete: "bg-rose-500/10 text-rose-700",
+};
+
+const getColorForAction = (action: string): string => {
+  const colorMap: Record<string, string> = {
+    upload: "#3b82f6",
+    download: "#10b981",
+    delete: "#ef4444",
+    share: "#a855f7",
+    view: "#6b7280",
+    login: "#06b6d4",
+    logout: "#f59e0b",
+    password_change: "#6366f1",
+    account_delete: "#ec4899",
+  };
+  return colorMap[action] || "#8884d8";
 };
 
 export default function AnalyticsPage() {
@@ -75,7 +105,7 @@ export default function AnalyticsPage() {
   const { toast } = useToast();
 
   const [stats, setStats] = useState<StatsData | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -90,20 +120,22 @@ export default function AnalyticsPage() {
 
       const [statsRes, activitiesRes] = await Promise.all([
         fetch("/api/analytics/stats"),
-        fetch("/api/analytics/activity?limit=20"),
+        fetch("/api/analytics/activity?limit=30&days=30"),
       ]);
 
-      if (!statsRes.ok || !activitiesRes.ok) {
-        throw new Error("Failed to fetch analytics");
+      if (!statsRes.ok) {
+        throw new Error("Failed to fetch stats");
       }
 
       const statsData = await statsRes.json();
-      const activitiesData = await activitiesRes.json();
+      const activitiesData = activitiesRes.ok
+        ? await activitiesRes.json()
+        : { activities: [] };
 
       setStats(statsData);
       setActivities(activitiesData.activities || []);
     } catch (error) {
-      console.error("[v0] Analytics fetch error:", error);
+      console.error("[Analytics] Fetch error:", error);
       toast({
         title: "Error",
         description: "Failed to load analytics data",
@@ -122,7 +154,7 @@ export default function AnalyticsPage() {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
-  if (!isLoaded || isLoading || !stats) {
+  if (!isLoaded || isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-muted-foreground">Loading analytics...</p>
@@ -130,19 +162,28 @@ export default function AnalyticsPage() {
     );
   }
 
-  const activityChartData = Object.entries(stats.activities).map(
-    ([key, value]) => ({
-      name: key.charAt(0).toUpperCase() + key.slice(1),
-      value,
-      fill:
-        actionColors[key]
-          ?.split(" ")[0]
-          .replace("bg-", "")
-          .replace("/10", "") || "#8884d8",
-    })
-  );
+  if (!stats) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-muted-foreground">No data available</p>
+      </div>
+    );
+  }
 
-  const COLORS = ["#3b82f6", "#10b981", "#ef4444", "#a855f7", "#6b7280"];
+  // Prepare activity distribution data
+  const activityChartData = Object.entries(stats.activities)
+    .map(([key, value]) => ({
+      name: key.charAt(0).toUpperCase() + key.slice(1),
+      value: value as number,
+      fill: getColorForAction(key),
+    }))
+    .filter((item) => item.value > 0);
+
+  const mostActiveType = Object.entries(stats.activities).reduce(
+    (prev, current) =>
+      (current[1] as number) > (prev[1] as number) ? current : prev,
+    ["none", 0]
+  )[0];
 
   return (
     <div className="space-y-6">
@@ -157,8 +198,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6 border-border bg-card">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Files</p>
@@ -170,7 +211,7 @@ export default function AnalyticsPage() {
           </div>
         </Card>
 
-        <Card className="p-6 border-border bg-card">
+        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Storage</p>
@@ -182,7 +223,7 @@ export default function AnalyticsPage() {
           </div>
         </Card>
 
-        <Card className="p-6 border-border bg-card">
+        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Files Shared</p>
@@ -193,102 +234,74 @@ export default function AnalyticsPage() {
             <Share2 className="w-10 h-10 text-primary/20" />
           </div>
         </Card>
+
+        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Activities</p>
+              <p className="text-3xl font-bold text-foreground mt-2">
+                {activities.length}
+              </p>
+            </div>
+            <Activity className="w-10 h-10 text-primary/20" />
+          </div>
+        </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Activity Distribution */}
+      {/* Charts Row 1 */}
+      <div className="grid grid-cols-1 gap-6">
+        {/* Activity Type - Bar Chart */}
         <Card className="p-6 border-border bg-card">
-          <h3 className="font-semibold text-foreground mb-4">
-            Activity Distribution
+          <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            Activity Breakdown
           </h3>
-          <ChartContainer
-            config={{
-              value: {
-                label: "Count",
-                color: "hsl(var(--chart-1))",
-              },
-            }}
-            className="h-[300px]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={activityChartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={(entry) => `${entry.name}: ${entry.value}`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {COLORS.map((color, index) => (
-                    <Cell key={`cell-${index}`} fill={color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </Card>
-
-        {/* Storage Trend */}
-        <Card className="p-6 border-border bg-card">
-          <h3 className="font-semibold text-foreground mb-4">
-            Storage Usage Trend
-          </h3>
-          <ChartContainer
-            config={{
-              size: {
-                label: "Storage (MB)",
-                color: "hsl(var(--chart-1))",
-              },
-              files: {
-                label: "File Count",
-                color: "hsl(var(--chart-2))",
-              },
-            }}
-            className="h-[300px]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.storageTrend}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
+          {activityChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={activityChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="name" />
                 <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="size"
-                  stroke="var(--color-size)"
-                  name="Storage (Bytes)"
-                  strokeWidth={2}
+                <Tooltip
+                  cursor={{ fill: "var(--primary)/10" }}
+                  formatter={(value) => [`${value} activities`, "Count"]}
                 />
-              </LineChart>
+                <Bar dataKey="value" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
-          </ChartContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              No activity data available
+            </div>
+          )}
         </Card>
       </div>
 
       {/* Recent Activity */}
       <Card className="border-border bg-card">
         <div className="p-6 border-b border-border">
-          <h3 className="font-semibold text-foreground">Recent Activity</h3>
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Recent Activity
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Last 30 activities
+          </p>
         </div>
 
         {activities.length > 0 ? (
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border max-h-96 overflow-y-auto">
             {activities.map((activity) => {
-              const ActionIcon = actionIcons[activity.action_type] || Eye;
+              const ActionIcon = actionIcons[activity.actionType] || Activity;
               return (
                 <div
                   key={activity.id}
                   className="p-4 flex items-start gap-4 hover:bg-muted/30 transition-colors"
                 >
                   <div
-                    className={`p-2 rounded-lg ${
-                      actionColors[activity.action_type] || "bg-gray-500/10"
+                    className={`p-2 rounded-lg shrink-0 ${
+                      actionColors[activity.actionType] ||
+                      "bg-gray-500/10 text-gray-700"
                     }`}
                   >
                     <ActionIcon className="w-5 h-5" />
@@ -296,7 +309,7 @@ export default function AnalyticsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-foreground capitalize">
-                        {activity.action_type}
+                        {activity.actionType.replace(/_/g, " ")}
                       </span>
                       {activity.description && (
                         <span className="text-sm text-muted-foreground truncate">
@@ -305,7 +318,7 @@ export default function AnalyticsPage() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(activity.created_at).toLocaleString()}
+                      {new Date(activity.createdAt).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -314,6 +327,7 @@ export default function AnalyticsPage() {
           </div>
         ) : (
           <div className="p-12 text-center">
+            <Activity className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
             <p className="text-muted-foreground">No activity yet</p>
           </div>
         )}

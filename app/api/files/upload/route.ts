@@ -4,6 +4,11 @@ import { files, users, googleTokens } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { uploadToGoogleDrive } from "@/lib/google-drive";
+import {
+  logActivity,
+  getClientIp,
+  getUserAgent,
+} from "@/lib/utils/activity-logger";
 
 export const runtime = "nodejs";
 
@@ -48,6 +53,8 @@ export async function POST(request: Request) {
     const salt = formData.get("salt") as string;
     const authTag = formData.get("authTag") as string;
     const encryptedBuffer = formData.get("encryptedBuffer") as unknown;
+    const originalMimeType = formData.get("originalMimeType") as string;
+    const originalFileName = formData.get("originalFileName") as string;
 
     if (!file || !iv || !salt || !authTag) {
       return new Response(
@@ -83,9 +90,21 @@ export async function POST(request: Request) {
       iv,
       salt,
       authTag,
-      fileName: file.name,
-      mimeType: file.type,
+      fileName: originalFileName || file.name,
+      mimeType: originalMimeType || file.type,
       fileSize: file.size,
+    });
+
+    // Log activity
+    await logActivity({
+      userId: user.id,
+      actionType: "upload",
+      fileId,
+      description: `Uploaded file: ${originalFileName || file.name} (${
+        file.size
+      } bytes)`,
+      ipAddress: getClientIp(request),
+      userAgent: getUserAgent(request),
     });
 
     return new Response(
