@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { users, userKeys } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import { hashPassword, generateSalt } from "@/lib/crypto-utils";
 import {
   logActivity,
@@ -33,17 +34,43 @@ export async function POST(request: Request) {
 
     const { oldPassword, newPassword } = await request.json();
 
-    if (!oldPassword) {
-      return new Response(
-        JSON.stringify({ error: "Current password is required" }),
-        { status: 400 }
-      );
-    }
-
     if (!newPassword || newPassword.length < 8) {
       return new Response(
         JSON.stringify({ error: "Password must be at least 8 characters" }),
-        { status: 400 }
+        { status: 400 },
+      );
+    }
+
+    // Verify whether the user already has an encryption key
+    const existingKey = await db.query.userKeys.findFirst({
+      where: eq(userKeys.userId, user.id),
+    });
+
+    if (!existingKey) {
+      // Initial password setup for first-time user
+      const newSalt = generateSalt();
+      const newKeyHash = await hashPassword(newPassword, newSalt);
+
+      await db.insert(userKeys).values({
+        id: nanoid(),
+        userId: user.id,
+        salt: btoa(String.fromCharCode(...newSalt)),
+        keyHash: newKeyHash,
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Encryption password set successfully.",
+        }),
+        { status: 200 },
+      );
+    }
+
+    if (!oldPassword) {
+      return new Response(
+        JSON.stringify({ error: "Current password is required" }),
+        { status: 400 },
       );
     }
 
@@ -52,19 +79,14 @@ export async function POST(request: Request) {
         JSON.stringify({
           error: "New password must be different from current password",
         }),
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Verify old password by comparing hashes
-    const existingKey = await db.query.userKeys.findFirst({
-      where: eq(userKeys.userId, user.id),
-    });
-
-    if (!existingKey || !existingKey.salt || !existingKey.keyHash) {
+    if (!existingKey.salt || !existingKey.keyHash) {
       return new Response(
         JSON.stringify({ error: "User encryption key not found" }),
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -72,7 +94,7 @@ export async function POST(request: Request) {
     const storedSalt = new Uint8Array(
       atob(existingKey.salt)
         .split("")
-        .map((c) => c.charCodeAt(0))
+        .map((c) => c.charCodeAt(0)),
     );
 
     // Hash the old password with the stored salt
@@ -82,7 +104,7 @@ export async function POST(request: Request) {
     if (oldPasswordHash !== existingKey.keyHash) {
       return new Response(
         JSON.stringify({ error: "Current password is incorrect" }),
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -107,15 +129,15 @@ export async function POST(request: Request) {
       reEncryptionJobId = await startFileReEncryptionJob(
         user.id,
         oldPassword, // Correct: old password for decryption
-        newPassword // new password for re-encryption
+        newPassword, // new password for re-encryption
       );
       console.log(
-        `[Password Change] Started re-encryption job ${reEncryptionJobId} for user ${user.id}`
+        `[Password Change] Started re-encryption job ${reEncryptionJobId} for user ${user.id}`,
       );
     } catch (error) {
       console.error(
         "[Password Change] Failed to start re-encryption job:",
-        error
+        error,
       );
       // Don't fail the password change if re-encryption job fails to start
     }
@@ -138,13 +160,13 @@ export async function POST(request: Request) {
           "Password changed successfully. Files are being re-encrypted in the background.",
         reEncryptionJobId,
       }),
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Password change error:", error);
     return new Response(
       JSON.stringify({ error: "Failed to change password" }),
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -43,12 +43,15 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [isCheckingGoogle, setIsCheckingGoogle] = useState(true);
+  const [isCheckingPassword, setIsCheckingPassword] = useState(true);
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     checkGoogleStatus();
+    checkPasswordStatus();
   }, []);
 
   const checkGoogleStatus = async () => {
@@ -64,11 +67,37 @@ export default function SettingsPage() {
     }
   };
 
+  const checkPasswordStatus = async () => {
+    try {
+      setIsCheckingPassword(true);
+      const response = await fetch("/api/auth/password-status");
+      if (!response.ok) {
+        throw new Error("Unable to check password status");
+      }
+      const data = await response.json();
+      setHasPassword(Boolean(data.hasPassword));
+    } catch (error) {
+      console.error("Failed to check password status:", error);
+      setHasPassword(null);
+    } finally {
+      setIsCheckingPassword(false);
+    }
+  };
+
   const handleChangePassword = async () => {
-    if (!newPassword || !oldPassword) {
+    if (!newPassword) {
       toast({
         title: "Error",
-        description: "Enter your current and new encryption passwords",
+        description: "Enter a new encryption password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (hasPassword && !oldPassword) {
+      toast({
+        title: "Error",
+        description: "Enter your current encryption password",
         variant: "destructive",
       });
       return;
@@ -88,18 +117,27 @@ export default function SettingsPage() {
       const response = await fetch("/api/settings/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword, oldPassword }),
+        body: JSON.stringify(
+          hasPassword ? { newPassword, oldPassword } : { newPassword },
+        ),
       });
 
-      if (!response.ok) throw new Error("Failed to change password");
+      const responseData = await response.json();
+      if (!response.ok) {
+        throw new Error(responseData.error || "Failed to update password");
+      }
 
       toast({
         title: "Success",
         description:
+          responseData.message ||
           "Password updated successfully. All files will use the new password.",
       });
       setNewPassword("");
       setOldPassword("");
+      if (!hasPassword) {
+        setHasPassword(true);
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -126,7 +164,7 @@ export default function SettingsPage() {
       const googleWindow = window.open(
         url,
         "google-auth",
-        `width=${width},height=${height},left=${left},top=${top}`
+        `width=${width},height=${height},left=${left},top=${top}`,
       );
 
       if (!googleWindow) {
@@ -228,7 +266,9 @@ export default function SettingsPage() {
             </p>
           </div>
           <div className="rounded-xl border border-border bg-background/70 p-4">
-            <p className="text-xs uppercase text-muted-foreground">Signed in as</p>
+            <p className="text-xs uppercase text-muted-foreground">
+              Signed in as
+            </p>
             <p className="mt-1 max-w-[18rem] truncate text-sm font-medium">
               {user?.emailAddresses[0]?.emailAddress}
             </p>
@@ -375,50 +415,73 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-foreground">
-                  Encryption password
+                  {hasPassword === false
+                    ? "Set your encryption password"
+                    : "Encryption password"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Change the password used to decrypt your files.
+                  {hasPassword === false
+                    ? "Create a password to encrypt and decrypt your files."
+                    : "Change the password used to decrypt your files."}
                 </p>
               </div>
             </div>
             <Separator className="my-5 bg-border" />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="old-password" className="text-foreground">
-                  Current password
-                </Label>
-                <Input
-                  id="old-password"
-                  type="password"
-                  placeholder="Current encryption password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  className="mt-2 bg-card border-border"
-                  disabled={isSaving}
-                />
+            {isCheckingPassword ? (
+              <p className="text-sm text-muted-foreground">
+                Checking password setup status...
+              </p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {hasPassword && (
+                  <div>
+                    <Label htmlFor="old-password" className="text-foreground">
+                      Current password
+                    </Label>
+                    <Input
+                      id="old-password"
+                      type="password"
+                      placeholder="Current encryption password"
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      className="mt-2 bg-card border-border"
+                      disabled={isSaving}
+                    />
+                  </div>
+                )}
+                <div>
+                  <Label htmlFor="new-password" className="text-foreground">
+                    {hasPassword ? "New password" : "Encryption password"}
+                  </Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    placeholder="At least 8 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="mt-2 bg-card border-border"
+                    disabled={isSaving}
+                  />
+                </div>
               </div>
-              <div>
-                <Label htmlFor="new-password" className="text-foreground">
-                  New password
-                </Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  placeholder="At least 8 characters"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="mt-2 bg-card border-border"
-                  disabled={isSaving}
-                />
-              </div>
-            </div>
+            )}
             <Button
               onClick={handleChangePassword}
-              disabled={!newPassword || !oldPassword || isSaving}
+              disabled={
+                isSaving ||
+                !newPassword ||
+                (hasPassword === true && !oldPassword) ||
+                hasPassword === null
+              }
               className="mt-5 w-full"
             >
-              {isSaving ? "Updating..." : "Update Encryption Password"}
+              {isSaving
+                ? hasPassword
+                  ? "Updating..."
+                  : "Saving..."
+                : hasPassword
+                  ? "Update Encryption Password"
+                  : "Set Encryption Password"}
             </Button>
           </Card>
         </div>
@@ -427,7 +490,9 @@ export default function SettingsPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete your SecureVault account?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete your SecureVault account?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This permanently removes your account data and encrypted file
               records. This action cannot be undone.

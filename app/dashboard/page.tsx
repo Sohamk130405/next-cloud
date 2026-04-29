@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ function sortFiles(
 }
 
 export default function FilesPage() {
+  const router = useRouter();
   const { isLoaded } = useUser();
   const { toast } = useToast();
 
@@ -111,13 +113,32 @@ export default function FilesPage() {
   const initializeUserAndFetchFiles = async () => {
     try {
       setIsLoading(true);
-      await fetch("/api/auth/user-init", { method: "POST" });
+      const response = await fetch("/api/auth/user-init", { method: "POST" });
+      if (!response.ok) {
+        throw new Error("Failed to initialize user session");
+      }
+
+      const data = await response.json();
+      if (data.needsPassword) {
+        toast({
+          title: "Set your encryption password",
+          description:
+            "Please set your encryption password in Settings before uploading or viewing files.",
+          variant: "destructive",
+        });
+        router.push("/dashboard/settings");
+        return;
+      }
+
       await fetchFiles();
     } catch (error) {
       console.error("[v0] Init error:", error);
       toast({
         title: "Error",
-        description: "Failed to initialize user session",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to initialize user session",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -399,7 +420,10 @@ export default function FilesPage() {
               : "Start by uploading your first encrypted file"}
           </p>
           {!searchQuery && (
-            <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button
+              asChild
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
               <Link href="/dashboard/upload">
                 <Upload className="w-4 h-4 mr-2" />
                 Upload Your First File
@@ -437,7 +461,8 @@ export default function FilesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete file?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes "{deleteTarget?.fileName}" from your encrypted storage.
+              This permanently removes "{deleteTarget?.fileName}" from your
+              encrypted storage.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -470,70 +495,70 @@ function FileTableRow({
 
   return (
     <tr className="border-b border-border hover:bg-muted/20 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="max-w-[22rem] truncate font-medium text-foreground">
-                            {file.fileName}
-                          </div>
-                          <Badge variant="secondary" className="text-xs mt-1">
-                            {file.mimeType}
-                          </Badge>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-foreground">
-                      {formatFileSize(file.fileSize)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        {formatDate(file.createdAt)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={onShare}
-                          title="Share file"
-                          className="text-muted-foreground hover:text-foreground hover:bg-primary/10"
-                        >
-                          <Share2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={onPreview}
-                          title="Preview file"
-                          className="text-muted-foreground hover:text-foreground hover:bg-primary/10"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={onPreview}
-                          title="Download file"
-                          className="text-muted-foreground hover:text-foreground hover:bg-primary/10"
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={onDelete}
-                          title="Delete file"
-                          className="text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="max-w-[22rem] truncate font-medium text-foreground">
+              {file.fileName}
+            </div>
+            <Badge variant="secondary" className="text-xs mt-1">
+              {file.mimeType}
+            </Badge>
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 text-sm text-foreground">
+        {formatFileSize(file.fileSize)}
+      </td>
+      <td className="px-6 py-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4" />
+          {formatDate(file.createdAt)}
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onShare}
+            title="Share file"
+            className="text-muted-foreground hover:text-foreground hover:bg-primary/10"
+          >
+            <Share2 className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onPreview}
+            title="Preview file"
+            className="text-muted-foreground hover:text-foreground hover:bg-primary/10"
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onPreview}
+            title="Download file"
+            className="text-muted-foreground hover:text-foreground hover:bg-primary/10"
+          >
+            <Download className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            title="Delete file"
+            className="text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </td>
     </tr>
   );
 }
@@ -558,7 +583,9 @@ function FileMobileCard({
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="break-words font-medium text-foreground">{file.fileName}</p>
+          <p className="break-words font-medium text-foreground">
+            {file.fileName}
+          </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Badge variant="secondary" className="max-w-full truncate text-xs">
               {file.mimeType}
@@ -575,13 +602,28 @@ function FileMobileCard({
       </div>
 
       <div className="grid grid-cols-4 gap-2">
-        <Button variant="outline" size="icon" onClick={onShare} title="Share file">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onShare}
+          title="Share file"
+        >
           <Share2 className="w-4 h-4" />
         </Button>
-        <Button variant="outline" size="icon" onClick={onPreview} title="Preview file">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onPreview}
+          title="Preview file"
+        >
           <Eye className="w-4 h-4" />
         </Button>
-        <Button variant="outline" size="icon" onClick={onPreview} title="Download file">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onPreview}
+          title="Download file"
+        >
           <Download className="w-4 h-4" />
         </Button>
         <Button

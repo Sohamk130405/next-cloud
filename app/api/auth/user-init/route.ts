@@ -27,38 +27,37 @@ export async function POST(request: Request) {
     });
 
     if (existingUser) {
-      return new Response(JSON.stringify({ user: existingUser }), {
-        status: 200,
+      const existingKey = await db.query.userKeys.findFirst({
+        where: eq(userKeys.userId, existingUser.id),
       });
+
+      return new Response(
+        JSON.stringify({
+          user: existingUser,
+          needsPassword: !Boolean(existingKey),
+        }),
+        {
+          status: 200,
+        },
+      );
     }
 
     const clerkUser = await currentUser();
     if (!clerkUser) {
       return new Response(
         JSON.stringify({ error: "User not found in Clerk" }),
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     const newUserId = nanoid();
-    const salt = generateSalt();
-    const randomPassword = nanoid(32);
-    const keyHash = await hashPassword(randomPassword, salt);
 
-    // Create user
+    // Create user without an encryption password yet.
     await db.insert(users).values({
       id: newUserId,
       clerkId: userId,
       email: clerkUser.emailAddresses[0]?.emailAddress || "user@example.com",
       name: clerkUser.firstName || "User",
-    });
-
-    // Store encryption key
-    await db.insert(userKeys).values({
-      id: nanoid(),
-      userId: newUserId,
-      salt: btoa(String.fromCharCode(...salt)),
-      keyHash,
     });
 
     // Log activity for new user login
@@ -74,15 +73,16 @@ export async function POST(request: Request) {
       JSON.stringify({
         success: true,
         userId: newUserId,
+        needsPassword: true,
         message: "User initialized",
       }),
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     console.error("[v0] User init error:", error);
     return new Response(
       JSON.stringify({ error: "Failed to initialize user" }),
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
