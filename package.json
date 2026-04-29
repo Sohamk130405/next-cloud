@@ -75,7 +75,7 @@
     "lucide-react": "^0.454.0",
     "mysql2": "latest",
     "nanoid": "latest",
-    "next": "16.0.0",
+    "next": "16.0.10",
     "next-themes": "latest",
     "pg": "latest",
     "postgres": "latest",
