@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Download, Eye, AlertCircle, FileText, Loader } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { decryptFile } from "@/lib/crypto-utils";
+import {
+  saveDecryptedFile,
+  useFileDownload,
+  type DecryptedFile,
+} from "@/hooks/use-file-download";
+import { getEffectiveMimeType } from "@/lib/file-utils";
 
 interface FilePreviewModalProps {
   open: boolean;
@@ -30,66 +36,21 @@ export function FilePreviewModal({
   mimeType,
 }: FilePreviewModalProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const { decryptRemoteFile, downloadFile, isWorking } = useFileDownload();
   const [previewMode, setPreviewMode] = useState<
     "password" | "preview" | "decrypting"
   >("password");
-  const [previewData, setPreviewData] = useState<{
-    data: Uint8Array;
-    mimeType: string;
-  } | null>(null);
+  const [previewData, setPreviewData] = useState<DecryptedFile | null>(null);
 
-  // Helper function to detect MIME type from filename
-  const getMimeTypeFromFileName = (name: string): string => {
-    const ext = name.split(".").pop()?.toLowerCase() || "";
-    const mimeTypeMap: Record<string, string> = {
-      // Images
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      gif: "image/gif",
-      webp: "image/webp",
-      svg: "image/svg+xml",
-      bmp: "image/bmp",
-      // Text
-      txt: "text/plain",
-      md: "text/markdown",
-      json: "application/json",
-      xml: "application/xml",
-      csv: "text/csv",
-      // Documents
-      pdf: "application/pdf",
-      doc: "application/msword",
-      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      xls: "application/vnd.ms-excel",
-      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      ppt: "application/vnd.ms-powerpoint",
-      pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      // Video
-      mp4: "video/mp4",
-      webm: "video/webm",
-      avi: "video/x-msvideo",
-      mov: "video/quicktime",
-      // Audio
-      mp3: "audio/mpeg",
-      wav: "audio/wav",
-      ogg: "audio/ogg",
-    };
-    return mimeTypeMap[ext] || "application/octet-stream";
-  };
-
-  const getEffectiveMimeType = (mimeType: string, fileName: string): string => {
-    // If MIME type is generic, try to detect from filename
-    if (
-      mimeType === "application/octet-stream" ||
-      !mimeType ||
-      mimeType === "application/x-octet-stream"
-    ) {
-      return getMimeTypeFromFileName(fileName);
+  useEffect(() => {
+    if (!open) {
+      setPassword("");
+      setPreviewMode("password");
+      setPreviewData(null);
     }
-    return mimeType;
-  };
+  }, [open]);
 
   const handlePreview = async () => {
     if (!password) {
@@ -102,55 +63,33 @@ export function FilePreviewModal({
     }
 
     setPreviewMode("decrypting");
-    setIsLoading(true);
     try {
-      const response = await fetch("/api/files/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileId }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error((errorData as any)?.error || "Failed to fetch file");
-      }
-
-      const data = await response.json();
-
-      if (!data.encryptedData || !data.iv || !data.salt) {
-        throw new Error("Invalid file data received from server");
-      }
-
-      const encryptedBuffer = new Uint8Array(data.encryptedData).buffer;
-
-      let decryptedBuffer: ArrayBuffer;
-      try {
-        decryptedBuffer = await decryptFile(
-          encryptedBuffer,
-          password,
-          data.iv,
-          data.salt
-        );
-      } catch (decryptError) {
-        throw new Error("Failed to decrypt file. Please check your password.");
-      }
-
-      setPreviewData({
-        data: new Uint8Array(decryptedBuffer),
-        mimeType: data.mimeType,
-      });
+      const decryptedFile = await decryptRemoteFile({ fileId, password, fileName, mimeType });
+      setPreviewData(decryptedFile);
       setPreviewMode("preview");
     } catch (error) {
       console.error("[v0] Preview error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to decrypt file";
+
+      // Check if the error indicates Google account needs reconnection
+      if (errorMessage.includes("Google account access has expired")) {
+        toast({
+          title: "Google Account Disconnected",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        // Redirect to settings page
+        router.push("/dashboard/settings");
+        return;
+      }
+
       toast({
         title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to decrypt file",
+        description: errorMessage,
         variant: "destructive",
       });
       setPreviewMode("password");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -164,46 +103,17 @@ export function FilePreviewModal({
       return;
     }
 
-    setIsLoading(true);
     try {
-      const response = await fetch("/api/files/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileId }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error((errorData as any)?.error || "Failed to fetch file");
+      if (previewData) {
+        saveDecryptedFile(previewData);
+        toast({
+          title: "Success",
+          description: "File downloaded successfully",
+        });
+        return;
       }
 
-      const data = await response.json();
-
-      if (!data.encryptedData || !data.iv || !data.salt) {
-        throw new Error("Invalid file data received from server");
-      }
-
-      const encryptedBuffer = new Uint8Array(data.encryptedData).buffer;
-
-      let decryptedBuffer: ArrayBuffer;
-      try {
-        decryptedBuffer = await decryptFile(
-          encryptedBuffer,
-          password,
-          data.iv,
-          data.salt
-        );
-      } catch (decryptError) {
-        throw new Error("Failed to decrypt file. Please check your password.");
-      }
-
-      const blob = new Blob([decryptedBuffer], { type: data.mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = data.fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadFile({ fileId, password, fileName, mimeType });
 
       toast({
         title: "Success",
@@ -214,14 +124,26 @@ export function FilePreviewModal({
       onOpenChange(false);
     } catch (error) {
       console.error("[v0] Download error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to decrypt file";
+
+      // Check if the error indicates Google account needs reconnection
+      if (errorMessage.includes("Google account access has expired")) {
+        toast({
+          title: "Google Account Disconnected",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        // Redirect to settings page
+        router.push("/dashboard/settings");
+        return;
+      }
+
       toast({
         title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to decrypt file",
+        description: errorMessage,
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -231,26 +153,16 @@ export function FilePreviewModal({
     try {
       const effectiveMimeType = getEffectiveMimeType(
         previewData.mimeType,
-        fileName
+        fileName,
       );
 
       if (effectiveMimeType.startsWith("image/")) {
-        const imageUrl = URL.createObjectURL(
-          new Blob([previewData.data as BlobPart], {
-            type: effectiveMimeType,
-          })
-        );
         return (
-          <div className="w-full max-h-96 overflow-auto rounded-lg border border-border">
-            <img
-              src={imageUrl || "/placeholder.svg"}
-              alt={fileName}
-              className="w-full h-auto"
-              onError={(e) => {
-                console.error("Image failed to load:", e);
-              }}
-            />
-          </div>
+          <ImagePreview
+            data={previewData.data}
+            fileName={fileName}
+            mimeType={effectiveMimeType}
+          />
         );
       }
 
@@ -259,16 +171,14 @@ export function FilePreviewModal({
         effectiveMimeType === "application/json"
       ) {
         try {
-          const text = new TextDecoder()
-            .decode(previewData.data)
-            .substring(0, 10000);
-          const fullLength = new TextDecoder().decode(previewData.data).length;
+          const decoded = new TextDecoder().decode(previewData.data);
+          const text = decoded.substring(0, 10000);
 
           return (
             <div className="w-full max-h-96 overflow-auto rounded-lg border border-border bg-muted/50 p-4">
               <pre className="text-xs text-foreground font-mono whitespace-pre-wrap wrap-break-word">
                 {text}
-                {fullLength > 10000 && "\n... (truncated)"}
+                {decoded.length > 10000 && "\n... (truncated)"}
               </pre>
             </div>
           );
@@ -375,7 +285,7 @@ export function FilePreviewModal({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="mt-2 bg-card border-border"
-                  disabled={isLoading}
+                  disabled={isWorking}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && password) {
                       handlePreview();
@@ -391,7 +301,7 @@ export function FilePreviewModal({
                     setPassword("");
                     onOpenChange(false);
                   }}
-                  disabled={isLoading}
+                  disabled={isWorking}
                   className="flex-1"
                 >
                   Cancel
@@ -399,19 +309,19 @@ export function FilePreviewModal({
                 <Button
                   variant="outline"
                   onClick={handlePreview}
-                  disabled={!password || isLoading}
+                  disabled={!password || isWorking}
                   className="flex-1 gap-2 bg-transparent"
                 >
                   <Eye className="w-4 h-4" />
-                  {isLoading ? "Loading..." : "Preview"}
+                  {isWorking ? "Loading..." : "Preview"}
                 </Button>
                 <Button
                   onClick={handleDownload}
-                  disabled={!password || isLoading}
+                  disabled={!password || isWorking}
                   className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
                 >
                   <Download className="w-4 h-4" />
-                  {isLoading ? "Downloading..." : "Download"}
+                  {isWorking ? "Downloading..." : "Download"}
                 </Button>
               </div>
             </>
@@ -488,5 +398,37 @@ export function FilePreviewModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ImagePreview({
+  data,
+  fileName,
+  mimeType,
+}: {
+  data: Uint8Array;
+  fileName: string;
+  mimeType: string;
+}) {
+  const imageUrl = useMemo(
+    () => URL.createObjectURL(new Blob([data as BlobPart], { type: mimeType })),
+    [data, mimeType],
+  );
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(imageUrl);
+  }, [imageUrl]);
+
+  return (
+    <div className="w-full max-h-[65vh] overflow-auto rounded-lg border border-border bg-muted/30">
+      <img
+        src={imageUrl}
+        alt={fileName}
+        className="h-auto w-full"
+        onError={(event) => {
+          console.error("Image failed to load:", event);
+        }}
+      />
+    </div>
   );
 }

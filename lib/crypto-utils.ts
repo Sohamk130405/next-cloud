@@ -7,7 +7,7 @@ export async function deriveKeyFromPassword(
 
   const baseKey = await crypto.subtle.importKey(
     "raw",
-    passwordData,
+    toArrayBuffer(passwordData),
     { name: "PBKDF2" },
     false,
     ["deriveBits", "deriveKey"]
@@ -16,7 +16,7 @@ export async function deriveKeyFromPassword(
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: salt,
+      salt: toArrayBuffer(salt),
 
       iterations: 100000,
       hash: "SHA-256",
@@ -43,7 +43,7 @@ export async function encryptFile(
   const key = await deriveKeyFromPassword(password, salt);
 
   const encryptedData = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv },
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
     key,
     fileBuffer
   );
@@ -77,7 +77,11 @@ export async function decryptFile(
 
   const key = await deriveKeyFromPassword(password, salt);
 
-  return crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, encryptedData);
+  return crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
+    key,
+    encryptedData,
+  );
 }
 
 export async function hashPassword(
@@ -89,7 +93,7 @@ export async function hashPassword(
 
   const baseKey = await crypto.subtle.importKey(
     "raw",
-    passwordData,
+    toArrayBuffer(passwordData),
     { name: "PBKDF2" },
     false,
     ["deriveBits"]
@@ -98,7 +102,7 @@ export async function hashPassword(
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
-      salt: salt,
+      salt: toArrayBuffer(salt),
       iterations: 100000,
       hash: "SHA-256",
     },
@@ -111,4 +115,11 @@ export async function hashPassword(
 
 export function generateSalt(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(16));
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
 }

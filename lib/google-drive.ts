@@ -40,6 +40,11 @@ async function getValidAccessToken(userId: string) {
       return accessToken;
     } catch (error) {
       console.error("Token refresh failed:", error);
+      // If refresh token is invalid, delete the token record
+      if (error instanceof Error && error.message.includes("invalid_grant")) {
+        await db.delete(googleTokens).where(eq(googleTokens.id, tokenRecord.id));
+        throw new Error("Google account access has expired. Please reconnect your Google account.");
+      }
       throw new Error("Failed to refresh Google credentials");
     }
   }

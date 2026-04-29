@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Lock, Download, AlertCircle, Loader } from "lucide-react";
-import { decryptFile } from "@/lib/crypto-utils";
+import { Calendar, Download, FileText, Lock, AlertCircle, Loader } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useFileDownload } from "@/hooks/use-file-download";
+import { formatDate, formatFileSize } from "@/lib/file-utils";
 
 interface SharedFile {
   id: string;
@@ -30,11 +31,11 @@ export default function SharePage() {
   const params = useParams();
   const token = params.token as string;
   const { toast } = useToast();
+  const { downloadFile, isWorking } = useFileDownload();
 
   const [file, setFile] = useState<SharedFile | null>(null);
   const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
   const [password, setPassword] = useState("");
-  const [isDecrypting, setIsDecrypting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -59,7 +60,7 @@ export default function SharePage() {
       setShareInfo(data.shareInfo);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to load shared file"
+        err instanceof Error ? err.message : "Failed to load shared file",
       );
     } finally {
       setIsLoading(false);
@@ -77,57 +78,32 @@ export default function SharePage() {
     }
 
     try {
-      setIsDecrypting(true);
-
-      // Fetch encrypted file from Google Drive
-      const response = await fetch("/api/files/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileId: file.id,
-          token: token, // Include token for public share downloads
-        }),
-      });
-      if (!response.ok) throw new Error("Failed to download file");
-
-      const data = await response.json();
-
-      const encryptedData = new Uint8Array(data.encryptedData).buffer;
-      const decrypted = await decryptFile(
-        encryptedData,
+      await downloadFile({
+        fileId: file.id,
         password,
-        file.iv,
-        file.salt,
-      );
-
-      // Create download link
-      const blob = new Blob([decrypted], { type: file.mimeType });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = file.fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+        token,
+        fileName: file.fileName,
+        mimeType: file.mimeType,
+        iv: file.iv,
+        salt: file.salt,
+      });
 
       toast({
         title: "Success",
         description: "File downloaded and decrypted",
       });
 
-      // Refresh share info to update download count
+      setPassword("");
       fetchShareInfo();
     } catch (err) {
       console.error("[v0] Download error:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to download file";
       toast({
         title: "Error",
-        description:
-          err instanceof Error ? err.message : "Failed to download file",
+        description: errorMessage,
         variant: "destructive",
       });
-    } finally {
-      setIsDecrypting(false);
     }
   };
 
@@ -170,19 +146,11 @@ export default function SharePage() {
     );
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
-  };
-
   return (
-    <div className="min-h-screen bg-background py-12 px-4">
-      <div className="max-w-md mx-auto space-y-6">
+    <div className="min-h-screen bg-background px-4 py-8 sm:py-12">
+      <div className="mx-auto max-w-lg space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
+        <div className="space-y-2 text-center">
           <div className="flex justify-center">
             <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
               <Lock className="w-6 h-6 text-primary" />
@@ -196,18 +164,31 @@ export default function SharePage() {
 
         {/* File Info Card */}
         <Card className="p-6 border-border space-y-4">
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">File Name</p>
-            <p className="font-semibold text-foreground break-words">
-              {file.fileName}
-            </p>
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm text-muted-foreground">File Name</p>
+              <p className="break-words font-semibold text-foreground">
+                {file.fileName}
+              </p>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">File Size</p>
-            <p className="font-medium text-foreground">
-              {formatFileSize(file.fileSize)}
-            </p>
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <div className="rounded-md border border-border bg-muted/20 p-3">
+              <p className="text-muted-foreground">File Size</p>
+              <p className="font-medium text-foreground">
+                {formatFileSize(file.fileSize)}
+              </p>
+            </div>
+            <div className="rounded-md border border-border bg-muted/20 p-3">
+              <p className="text-muted-foreground">Type</p>
+              <p className="truncate font-medium text-foreground">
+                {file.mimeType}
+              </p>
+            </div>
           </div>
 
           {shareInfo && (
@@ -219,8 +200,9 @@ export default function SharePage() {
                 </Badge>
               )}
               {shareInfo.expiresAt && (
-                <Badge variant="secondary">
-                  Expires {new Date(shareInfo.expiresAt).toLocaleDateString()}
+                <Badge variant="secondary" className="gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Expires {formatDate(shareInfo.expiresAt)}
                 </Badge>
               )}
             </div>
@@ -241,7 +223,7 @@ export default function SharePage() {
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleDownload()}
               className="mt-2"
-              disabled={isDecrypting}
+              disabled={isWorking}
             />
             <p className="text-xs text-muted-foreground mt-2">
               This password was set by the file owner
@@ -250,10 +232,10 @@ export default function SharePage() {
 
           <Button
             onClick={handleDownload}
-            disabled={!password || isDecrypting}
+            disabled={!password || isWorking}
             className="w-full bg-primary hover:bg-primary/90 gap-2"
           >
-            {isDecrypting ? (
+            {isWorking ? (
               <>
                 <Loader className="w-4 h-4 animate-spin" />
                 Decrypting...

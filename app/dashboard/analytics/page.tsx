@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
   LineChart,
@@ -36,8 +37,12 @@ import {
   TrendingUp,
   Activity,
   Lock,
+  ShieldCheck,
+  Globe,
+  Monitor,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatFileSize } from "@/lib/file-utils";
 
 interface StatsData {
   storage: {
@@ -57,7 +62,10 @@ interface ActivityLog {
   id: string;
   actionType: string;
   fileId: string | null;
+  shareId?: string | null;
   description: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
   createdAt: string;
 }
 
@@ -146,14 +154,6 @@ export default function AnalyticsPage() {
     }
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
-  };
-
   if (!isLoaded || isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -187,19 +187,23 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">
-          Analytics & Stats
+      <section className="overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-background to-accent/10 p-6 shadow-sm sm:p-8">
+        <Badge variant="secondary" className="mb-4 gap-1">
+          <ShieldCheck className="h-3 w-3" />
+          Security audit trail
+        </Badge>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          Analytics & Audit Logs
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Track your storage usage and activity
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+          Monitor storage growth, sharing behavior, and security-relevant file
+          actions across the last 30 days.
         </p>
-      </div>
+      </section>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
+        <Card className="p-6 border-border bg-card shadow-sm hover:bg-card/80 transition-colors">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Files</p>
@@ -211,7 +215,7 @@ export default function AnalyticsPage() {
           </div>
         </Card>
 
-        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
+        <Card className="p-6 border-border bg-card shadow-sm hover:bg-card/80 transition-colors">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Storage</p>
@@ -223,7 +227,7 @@ export default function AnalyticsPage() {
           </div>
         </Card>
 
-        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
+        <Card className="p-6 border-border bg-card shadow-sm hover:bg-card/80 transition-colors">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Files Shared</p>
@@ -235,7 +239,7 @@ export default function AnalyticsPage() {
           </div>
         </Card>
 
-        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
+        <Card className="p-6 border-border bg-card shadow-sm hover:bg-card/80 transition-colors">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Activities</p>
@@ -278,14 +282,14 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Recent Activity */}
-      <Card className="border-border bg-card">
+      <Card className="border-border bg-card shadow-sm">
         <div className="p-6 border-b border-border">
           <h3 className="font-semibold text-foreground flex items-center gap-2">
             <Activity className="w-4 h-4" />
-            Recent Activity
+            Recent Audit Events
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Last 30 activities
+            Security-relevant actions with source metadata when available
           </p>
         </div>
 
@@ -306,8 +310,8 @@ export default function AnalyticsPage() {
                   >
                     <ActionIcon className="w-5 h-5" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-foreground capitalize">
                         {activity.actionType.replace(/_/g, " ")}
                       </span>
@@ -320,6 +324,27 @@ export default function AnalyticsPage() {
                     <p className="text-xs text-muted-foreground mt-1">
                       {new Date(activity.createdAt).toLocaleString()}
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      {activity.ipAddress && (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-1">
+                          <Globe className="h-3 w-3" />
+                          {activity.ipAddress}
+                        </span>
+                      )}
+                      {activity.userAgent && (
+                        <span className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-1">
+                          <Monitor className="h-3 w-3 shrink-0" />
+                          <span className="truncate">
+                            {activity.userAgent}
+                          </span>
+                        </span>
+                      )}
+                      {activity.shareId && (
+                        <span className="rounded-md border border-border bg-muted/30 px-2 py-1">
+                          Share event
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useState, useEffect, useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,13 +13,14 @@ import {
   Trash2,
   Search,
   FileText,
-  FileVideo,
-  File,
   Upload,
   Lock,
   Calendar,
   ArrowUpDown,
   Share2,
+  Check,
+  ShieldCheck,
+  HardDrive,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,10 +28,27 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { FilePreviewModal } from "@/components/file-preview-modal";
 import { useToast } from "@/hooks/use-toast";
 import { FileShareDialog } from "@/components/file-share-dialog";
+import {
+  formatDate,
+  formatFileSize,
+  getFileIcon,
+  getFileKind,
+} from "@/lib/file-utils";
 
 interface FileRecord {
   id: string;
@@ -42,24 +61,10 @@ interface FileRecord {
 type SortBy = "name" | "date" | "size";
 type SortOrder = "asc" | "desc";
 
-function getFileIcon(mimeType: string) {
-  if (mimeType.startsWith("video")) return <FileVideo className="w-8 h-8" />;
-  if (mimeType.startsWith("image")) return <FileText className="w-8 h-8" />;
-  return <File className="w-8 h-8" />;
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
-}
-
 function sortFiles(
   files: FileRecord[],
   sortBy: SortBy,
-  sortOrder: SortOrder
+  sortOrder: SortOrder,
 ): FileRecord[] {
   const sorted = [...files];
 
@@ -95,6 +100,7 @@ export default function FilesPage() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareFileId, setShareFileId] = useState<string | null>(null);
   const [shareFileName, setShareFileName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<FileRecord | null>(null);
 
   useEffect(() => {
     if (isLoaded) {
@@ -137,14 +143,13 @@ export default function FilesPage() {
     }
   };
 
-  const handleDelete = async (fileId: string) => {
-    if (!confirm("Are you sure you want to delete this file?")) return;
-
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
       const response = await fetch("/api/files/delete", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileId }),
+        body: JSON.stringify({ fileId: deleteTarget.id }),
       });
 
       if (!response.ok) throw new Error("Failed to delete file");
@@ -155,6 +160,7 @@ export default function FilesPage() {
       });
 
       fetchFiles();
+      setDeleteTarget(null);
     } catch (error) {
       toast({
         title: "Error",
@@ -175,11 +181,22 @@ export default function FilesPage() {
     setShareDialogOpen(true);
   };
 
-  const filteredFiles = files.filter((file) =>
-    file.fileName.toLowerCase().includes(searchQuery.toLowerCase())
+  const sortedFiles = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filteredFiles = normalizedQuery
+      ? files.filter((file) =>
+          file.fileName.toLowerCase().includes(normalizedQuery),
+        )
+      : files;
+
+    return sortFiles(filteredFiles, sortBy, sortOrder);
+  }, [files, searchQuery, sortBy, sortOrder]);
+
+  const totalSize = useMemo(
+    () => files.reduce((acc, file) => acc + file.fileSize, 0),
+    [files],
   );
-  const sortedFiles = sortFiles(filteredFiles, sortBy, sortOrder);
-  const totalSize = files.reduce((acc, f) => acc + f.fileSize, 0);
+  const sharedFileId = shareFileId;
 
   if (!isLoaded || isLoading) {
     return (
@@ -191,25 +208,33 @@ export default function FilesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">My Files</h1>
-          <p className="text-muted-foreground mt-1">
-            Securely stored and encrypted
-          </p>
-        </div>
-        <a href="/dashboard/upload">
-          <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
-            <Upload className="w-4 h-4" />
-            Upload New File
+      <section className="overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-background to-accent/10 p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <Badge variant="secondary" className="mb-4 gap-1">
+              <ShieldCheck className="h-3 w-3" />
+              Encrypted media vault
+            </Badge>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              My Files
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
+              Search, preview, share, and download private files that stay
+              encrypted in your Google Drive storage.
+            </p>
+          </div>
+          <Button asChild className="h-11 w-full gap-2 sm:w-auto">
+            <Link href="/dashboard/upload">
+              <Upload className="w-4 h-4" />
+              Upload New File
+            </Link>
           </Button>
-        </a>
-      </div>
+        </div>
+      </section>
 
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
+        <Card className="overflow-hidden border-border bg-card p-6 shadow-sm transition-colors hover:bg-card/80">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Files</p>
@@ -217,10 +242,12 @@ export default function FilesPage() {
                 {files.length}
               </p>
             </div>
-            <FileText className="w-10 h-10 text-primary/20" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <FileText className="h-6 w-6" />
+            </div>
           </div>
         </Card>
-        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
+        <Card className="overflow-hidden border-border bg-card p-6 shadow-sm transition-colors hover:bg-card/80">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Size</p>
@@ -228,22 +255,26 @@ export default function FilesPage() {
                 {formatFileSize(totalSize)}
               </p>
             </div>
-            <Lock className="w-10 h-10 text-accent/20" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <HardDrive className="h-6 w-6" />
+            </div>
           </div>
         </Card>
-        <Card className="p-6 border-border bg-card hover:bg-card/80 transition-colors">
+        <Card className="overflow-hidden border-border bg-card p-6 shadow-sm transition-colors hover:bg-card/80">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Encryption</p>
               <p className="text-3xl font-bold text-accent mt-2">AES-256</p>
             </div>
-            <Lock className="w-10 h-10 text-accent/20" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+              <Lock className="h-6 w-6" />
+            </div>
           </div>
         </Card>
       </div>
 
       {/* Search and Sort Bar */}
-      <div className="flex gap-3 items-center">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card/80 p-3 shadow-sm sm:flex-row sm:items-center">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
           <Input
@@ -255,16 +286,15 @@ export default function FilesPage() {
         </div>
 
         <DropdownMenu>
-          <Button
-            variant="outline"
-            className="gap-2 border-border bg-transparent"
-            asChild
-          >
-            <button>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              className="w-full gap-2 border-border bg-transparent sm:w-auto"
+            >
               <ArrowUpDown className="w-4 h-4" />
-              Sort
-            </button>
-          </Button>
+              Sort: {sortBy}, {sortOrder}
+            </Button>
+          </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Sort By</DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -272,18 +302,21 @@ export default function FilesPage() {
               onClick={() => setSortBy("name")}
               className={sortBy === "name" ? "bg-primary/10" : ""}
             >
+              {sortBy === "name" && <Check className="w-4 h-4" />}
               File Name
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setSortBy("date")}
               className={sortBy === "date" ? "bg-primary/10" : ""}
             >
+              {sortBy === "date" && <Check className="w-4 h-4" />}
               Upload Date
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setSortBy("size")}
               className={sortBy === "size" ? "bg-primary/10" : ""}
             >
+              {sortBy === "size" && <Check className="w-4 h-4" />}
               File Size
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -293,12 +326,14 @@ export default function FilesPage() {
               onClick={() => setSortOrder("asc")}
               className={sortOrder === "asc" ? "bg-primary/10" : ""}
             >
+              {sortOrder === "asc" && <Check className="w-4 h-4" />}
               Ascending
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setSortOrder("desc")}
               className={sortOrder === "desc" ? "bg-primary/10" : ""}
             >
+              {sortOrder === "desc" && <Check className="w-4 h-4" />}
               Descending
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -308,7 +343,7 @@ export default function FilesPage() {
       {/* Files Table */}
       {sortedFiles.length > 0 ? (
         <Card className="overflow-hidden border-border">
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
@@ -328,17 +363,120 @@ export default function FilesPage() {
               </thead>
               <tbody>
                 {sortedFiles.map((file) => (
-                  <tr
+                  <FileTableRow
                     key={file.id}
-                    className="border-b border-border hover:bg-muted/20 transition-colors"
-                  >
+                    file={file}
+                    onDelete={() => setDeleteTarget(file)}
+                    onPreview={() => handlePreviewClick(file)}
+                    onShare={() => handleShareClick(file)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="divide-y divide-border md:hidden">
+            {sortedFiles.map((file) => (
+              <FileMobileCard
+                key={file.id}
+                file={file}
+                onDelete={() => setDeleteTarget(file)}
+                onPreview={() => handlePreviewClick(file)}
+                onShare={() => handleShareClick(file)}
+              />
+            ))}
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-8 text-center border-border bg-muted/30 sm:p-12">
+          <FileText className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-2">
+            No files found
+          </h3>
+          <p className="text-muted-foreground mb-6">
+            {searchQuery
+              ? "No files match your search criteria"
+              : "Start by uploading your first encrypted file"}
+          </p>
+          {!searchQuery && (
+            <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <Link href="/dashboard/upload">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Your First File
+              </Link>
+            </Button>
+          )}
+        </Card>
+      )}
+
+      {/* Share Dialog */}
+      {sharedFileId && (
+        <FileShareDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          fileId={sharedFileId}
+          fileName={shareFileName}
+        />
+      )}
+
+      {selectedFile && (
+        <FilePreviewModal
+          open={previewModalOpen}
+          onOpenChange={setPreviewModalOpen}
+          fileId={selectedFile.id}
+          fileName={selectedFile.fileName}
+          mimeType={selectedFile.mimeType}
+        />
+      )}
+
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete file?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes "{deleteTarget?.fileName}" from your encrypted storage.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function FileTableRow({
+  file,
+  onDelete,
+  onPreview,
+  onShare,
+}: {
+  file: FileRecord;
+  onDelete: () => void;
+  onPreview: () => void;
+  onShare: () => void;
+}) {
+  const Icon = getFileIcon(getFileKind(file.mimeType, file.fileName));
+
+  return (
+    <tr className="border-b border-border hover:bg-muted/20 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="text-primary">
-                          {getFileIcon(file.mimeType)}
+                        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+                          <Icon className="h-5 w-5" />
                         </div>
-                        <div>
-                          <div className="font-medium text-foreground">
+                        <div className="min-w-0">
+                          <div className="max-w-[22rem] truncate font-medium text-foreground">
                             {file.fileName}
                           </div>
                           <Badge variant="secondary" className="text-xs mt-1">
@@ -353,7 +491,7 @@ export default function FilesPage() {
                     <td className="px-6 py-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
-                        {new Date(file.createdAt).toLocaleDateString()}
+                        {formatDate(file.createdAt)}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -361,7 +499,7 @@ export default function FilesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleShareClick(file)}
+                          onClick={onShare}
                           title="Share file"
                           className="text-muted-foreground hover:text-foreground hover:bg-primary/10"
                         >
@@ -370,7 +508,7 @@ export default function FilesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handlePreviewClick(file)}
+                          onClick={onPreview}
                           title="Preview file"
                           className="text-muted-foreground hover:text-foreground hover:bg-primary/10"
                         >
@@ -379,7 +517,7 @@ export default function FilesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handlePreviewClick(file)}
+                          onClick={onPreview}
                           title="Download file"
                           className="text-muted-foreground hover:text-foreground hover:bg-primary/10"
                         >
@@ -388,7 +526,7 @@ export default function FilesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(file.id)}
+                          onClick={onDelete}
                           title="Delete file"
                           className="text-destructive hover:bg-destructive/10"
                         >
@@ -396,53 +534,66 @@ export default function FilesPage() {
                         </Button>
                       </div>
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    </tr>
+  );
+}
+
+function FileMobileCard({
+  file,
+  onDelete,
+  onPreview,
+  onShare,
+}: {
+  file: FileRecord;
+  onDelete: () => void;
+  onPreview: () => void;
+  onShare: () => void;
+}) {
+  const Icon = getFileIcon(getFileKind(file.mimeType, file.fileName));
+
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="break-words font-medium text-foreground">{file.fileName}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Badge variant="secondary" className="max-w-full truncate text-xs">
+              {file.mimeType}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              {formatFileSize(file.fileSize)}
+            </Badge>
           </div>
-        </Card>
-      ) : (
-        <Card className="p-12 text-center border-border bg-muted/30">
-          <FileText className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">
-            No files found
-          </h3>
-          <p className="text-muted-foreground mb-6">
-            {searchQuery
-              ? "No files match your search criteria"
-              : "Start by uploading your first encrypted file"}
+          <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+            <Calendar className="h-3.5 w-3.5" />
+            {formatDate(file.createdAt)}
           </p>
-          {!searchQuery && (
-            <a href="/dashboard/upload">
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Your First File
-              </Button>
-            </a>
-          )}
-        </Card>
-      )}
+        </div>
+      </div>
 
-      {/* Share Dialog */}
-      {shareFileId && (
-        <FileShareDialog
-          open={shareDialogOpen}
-          onOpenChange={setShareDialogOpen}
-          fileId={shareFileId}
-          fileName={shareFileName}
-        />
-      )}
-
-      {selectedFile && (
-        <FilePreviewModal
-          open={previewModalOpen}
-          onOpenChange={setPreviewModalOpen}
-          fileId={selectedFile.id}
-          fileName={selectedFile.fileName}
-          mimeType={selectedFile.mimeType}
-        />
-      )}
+      <div className="grid grid-cols-4 gap-2">
+        <Button variant="outline" size="icon" onClick={onShare} title="Share file">
+          <Share2 className="w-4 h-4" />
+        </Button>
+        <Button variant="outline" size="icon" onClick={onPreview} title="Preview file">
+          <Eye className="w-4 h-4" />
+        </Button>
+        <Button variant="outline" size="icon" onClick={onPreview} title="Download file">
+          <Download className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onDelete}
+          title="Delete file"
+          className="text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -76,7 +76,17 @@ export async function refreshAccessToken(
   });
 
   if (!response.ok) {
-    throw new Error("Failed to refresh access token");
+    let errorMessage = "Failed to refresh access token";
+    try {
+      const errorData = await response.json();
+      if (errorData.error) {
+        errorMessage = `Failed to refresh access token: ${errorData.error}${errorData.error_description ? ` - ${errorData.error_description}` : ''}`;
+      }
+    } catch (e) {
+      // If we can't parse the error, use the status text
+      errorMessage = `Failed to refresh access token: ${response.status} ${response.statusText}`;
+    }
+    throw new Error(errorMessage);
   }
 
   const data = await response.json();

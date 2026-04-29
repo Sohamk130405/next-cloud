@@ -9,6 +9,7 @@ import {
   getClientIp,
   getUserAgent,
 } from "@/lib/utils/activity-logger";
+import { protectWithArcjet } from "@/lib/arcjet";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,9 @@ export async function POST(request: Request) {
         status: 401,
       });
     }
+
+    const blocked = await protectWithArcjet(request, "upload", userId);
+    if (blocked) return blocked;
 
     // Get user from database
     const user = await db.query.users.findFirst({

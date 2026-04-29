@@ -1,13 +1,16 @@
 import { db } from "@/lib/db";
 import { shareLinks, files } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { protectWithArcjet } from "@/lib/arcjet";
 
 export async function GET(
   request: Request,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> },
 ) {
   try {
     const { token } = await params;
+    const blocked = await protectWithArcjet(request, "share", `share:${token}`);
+    if (blocked) return blocked;
 
     const shareRecord = await db
       .select({

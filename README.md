@@ -1,6 +1,6 @@
-# next-media (SecureVault)
+# Secure Vault
 
-SecureVault (next-media) is a Next.js (App Router) application that provides secure, encrypted media storage backed by a user's Google Drive account. Files are encrypted using AES-256-GCM and a password-derived key (PBKDF2). The app includes upload/download, share links, activity logging, analytics, and a background re-encryption job to migrate files when the user changes their encryption password.
+SecureVault is a Next.js (App Router) application that provides secure, encrypted media storage backed by a user's Google Drive account. Files are encrypted using AES-256-GCM and a password-derived key (PBKDF2). The app includes upload/download, share links, activity logging, analytics, and a background re-encryption job to migrate files when the user changes their encryption password.
 
 > Note: This README documents the current development implementation in this workspace (Next.js app, Drizzle ORM + PostgreSQL, Clerk auth, Google Drive integration). It includes design notes, endpoints, and operational details.
 
@@ -55,14 +55,14 @@ This workspace contains server APIs under `app/api/*`, UI pages under `app/*`, a
   - `lib/utils/activity-logger.ts` - centralized activity logging helper
 - `db/schema.ts` - Drizzle table definitions
 - `next.config.mjs`, `drizzle.config.ts`, `tsconfig.json`
-- `package.json`, `pnpm-lock.yaml`
+- `package.json`, `npm-lock.yaml`
 
 ## Local setup
 1. Clone the repo and enter the project directory.
-2. Install dependencies (this project uses pnpm in the workspace):
+2. Install dependencies (this project uses npm in the workspace):
 
 ```powershell
-pnpm install
+npm install
 ```
 
 3. Create a PostgreSQL database and run the migrations / initialize schema. There is a SQL file at `scripts/init-db.sql` that can be used for quick local initialization, but production should use proper migration tooling.
@@ -72,7 +72,7 @@ pnpm install
 5. Run the dev server:
 
 ```powershell
-pnpm dev
+npm run dev
 ```
 
 The app should be available at `http://localhost:3000` (or the port configured in your environment).
@@ -86,15 +86,16 @@ The app requires environment variables for runtime configuration. Example variab
 - `GOOGLE_CLIENT_SECRET` - OAuth client secret for Google
 - `GOOGLE_REDIRECT_URI` - Redirect URL configured in Google console (e.g. `${NEXT_PUBLIC_APP_URL}/api/auth/google/callback`)
 - `CLERK_SECRET` / other Clerk variables - configure Clerk according to their docs
+- `ARCJET_KEY` - Arcjet site key used for API rate limiting and Shield/WAF checks. The app runs locally without it, but Arcjet protections are only enforced when this key is present.
 
 Always keep secrets out of version control. Use platform-specific secret management in production.
 
 ## Scripts (from package.json)
 Typical scripts you can run:
 
-- `pnpm dev` - start dev server
-- `pnpm build` - build for production
-- `pnpm start` - start production server after build
+- `npm run dev` - start dev server
+- `npm build` - build for production
+- `npm start` - start production server after build
 
 (If package.json uses a different runner, adapt accordingly.)
 
@@ -174,14 +175,17 @@ Important considerations:
 - Recharts is used for visualization
 - The analytics API returns aggregated counts and a 30-day storage trend used by the UI
 
-## Theme toggle
-- `components/theme-toggle.tsx` uses `next-themes` to toggle light/dark modes. Theme toggle is integrated in the dashboard header.
+## Theme support
+- `components/theme-toggle.tsx` uses `next-themes` and exposes multiple themes from the dashboard header.
+- Supported themes: `system`, `light`, `dark`, `ocean-light`, `ocean-dark`, `forest-light`, `forest-dark`, `rose-light`, `rose-dark`, `slate-light`, and `slate-dark`.
+- Theme palettes are defined in `app/globals.css` as CSS variable sets.
 
 ## Production notes & scaling
 - Replace in-memory re-encryption tracking with a queue and worker pool
 - Persist job metadata in DB and add retry policies for failed files
 - Consider encrypting files server-side in a secure environment if client-side approach is being changed; ensure secrets are protected and rotate keys safely
-- Add rate limiting and robust error/exception monitoring for Google Drive API calls
+- Arcjet rate limiting is applied to sensitive APIs such as password verification, upload, download, sharing, and analytics. Tune limits in `lib/arcjet.ts` for production traffic.
+- Add robust error/exception monitoring for Google Drive API calls
 
 ## Troubleshooting & common issues
 - "Cipher job failed" during re-encryption: indicates the decryption password is incorrect. Ensure the `oldPassword` was provided and verified.
@@ -194,15 +198,9 @@ Important considerations:
 - Re-encryption must be performed in a trusted environment. Current implementation uses Node webcrypto with subtle APIs; for production, consider HSM or secure worker environments.
 
 ## Contributing
-- Run `pnpm install` then `pnpm dev` to develop locally.
+- Run `npm install` then `npm dev` to develop locally.
 - Follow repository code conventions (TypeScript, Prettier/ESLint if configured).
 - When working on re-encryption, test with a small number of files first.
 
 ---
 
-If you'd like, I can:
-- Add sample `.env.example` with the env var names
-- Add scripts and a small `pnpm` task to run the re-encryption job in a non-blocking worker process
-- Replace in-memory job tracking with a DB-backed job table and a simple worker
-
-Let me know which of the above you'd like next and I will implement it.

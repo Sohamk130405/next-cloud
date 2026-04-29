@@ -7,12 +7,16 @@ import {
   getClientIp,
   getUserAgent,
 } from "@/lib/utils/activity-logger";
+import { protectWithArcjet } from "@/lib/arcjet";
 
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId)
       return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    const blocked = await protectWithArcjet(request, "share", userId);
+    if (blocked) return blocked;
 
     const { fileId, shareToken, expiresAt, maxDownloads } =
       await request.json();
@@ -89,6 +93,9 @@ export async function GET(request: Request) {
     if (!userId)
       return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+    const blocked = await protectWithArcjet(request, "share", userId);
+    if (blocked) return blocked;
+
     const { searchParams } = new URL(request.url);
     const fileId = searchParams.get("fileId");
 
@@ -130,6 +137,9 @@ export async function DELETE(request: Request) {
     const { userId } = await auth();
     if (!userId)
       return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    const blocked = await protectWithArcjet(request, "share", userId);
+    if (blocked) return blocked;
 
     const { shareId } = await request.json();
 

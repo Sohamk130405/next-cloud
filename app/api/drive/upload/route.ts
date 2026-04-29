@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { googleTokens, users } from "@/db/schema"
 import { eq } from "drizzle-orm"
+import { protectWithArcjet } from "@/lib/arcjet"
 
 export const runtime = "nodejs"
 
@@ -11,6 +12,9 @@ export async function POST(request: Request) {
     if (!userId) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
     }
+
+    const blocked = await protectWithArcjet(request, "upload", userId)
+    if (blocked) return blocked
 
     const user = await db.query.users.findFirst({
       where: eq(users.clerkId, userId),
