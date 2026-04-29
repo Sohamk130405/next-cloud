@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ export default function SharePage() {
   const params = useParams();
   const token = params.token as string;
   const { toast } = useToast();
+  const router = useRouter();
 
   const [file, setFile] = useState<SharedFile | null>(null);
   const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
@@ -59,7 +60,7 @@ export default function SharePage() {
       setShareInfo(data.shareInfo);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to load shared file"
+        err instanceof Error ? err.message : "Failed to load shared file",
       );
     } finally {
       setIsLoading(false);
@@ -120,10 +121,11 @@ export default function SharePage() {
       fetchShareInfo();
     } catch (err) {
       console.error("[v0] Download error:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to download file";
       toast({
         title: "Error",
-        description:
-          err instanceof Error ? err.message : "Failed to download file",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

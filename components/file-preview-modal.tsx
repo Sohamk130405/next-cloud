@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,7 @@ export function FilePreviewModal({
   mimeType,
 }: FilePreviewModalProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [previewMode, setPreviewMode] = useState<
@@ -129,7 +131,7 @@ export function FilePreviewModal({
           encryptedBuffer,
           password,
           data.iv,
-          data.salt
+          data.salt,
         );
       } catch (decryptError) {
         throw new Error("Failed to decrypt file. Please check your password.");
@@ -142,10 +144,24 @@ export function FilePreviewModal({
       setPreviewMode("preview");
     } catch (error) {
       console.error("[v0] Preview error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to decrypt file";
+
+      // Check if the error indicates Google account needs reconnection
+      if (errorMessage.includes("Google account access has expired")) {
+        toast({
+          title: "Google Account Disconnected",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        // Redirect to settings page
+        router.push("/dashboard/settings");
+        return;
+      }
+
       toast({
         title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to decrypt file",
+        description: errorMessage,
         variant: "destructive",
       });
       setPreviewMode("password");
@@ -191,7 +207,7 @@ export function FilePreviewModal({
           encryptedBuffer,
           password,
           data.iv,
-          data.salt
+          data.salt,
         );
       } catch (decryptError) {
         throw new Error("Failed to decrypt file. Please check your password.");
@@ -214,10 +230,24 @@ export function FilePreviewModal({
       onOpenChange(false);
     } catch (error) {
       console.error("[v0] Download error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to decrypt file";
+
+      // Check if the error indicates Google account needs reconnection
+      if (errorMessage.includes("Google account access has expired")) {
+        toast({
+          title: "Google Account Disconnected",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        // Redirect to settings page
+        router.push("/dashboard/settings");
+        return;
+      }
+
       toast({
         title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to decrypt file",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -231,14 +261,14 @@ export function FilePreviewModal({
     try {
       const effectiveMimeType = getEffectiveMimeType(
         previewData.mimeType,
-        fileName
+        fileName,
       );
 
       if (effectiveMimeType.startsWith("image/")) {
         const imageUrl = URL.createObjectURL(
           new Blob([previewData.data as BlobPart], {
             type: effectiveMimeType,
-          })
+          }),
         );
         return (
           <div className="w-full max-h-96 overflow-auto rounded-lg border border-border">

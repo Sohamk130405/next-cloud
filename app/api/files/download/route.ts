@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       ) {
         return new Response(
           JSON.stringify({ error: "Download limit reached" }),
-          { status: 410 }
+          { status: 410 },
         );
       }
 
@@ -97,18 +97,21 @@ export async function POST(request: Request) {
     try {
       encryptedData = await downloadFromGoogleDrive(
         user.id,
-        fileRecord.driveFileId!
+        fileRecord.driveFileId!,
       );
       console.log(
         "[v0] File downloaded from Google Drive:",
-        fileRecord.driveFileId
+        fileRecord.driveFileId,
       );
     } catch (error) {
       console.error("[v0] Google Drive download failed:", error);
-      return new Response(
-        JSON.stringify({ error: "Failed to download file from Google Drive" }),
-        { status: 500 }
-      );
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to download file from Google Drive";
+      return new Response(JSON.stringify({ error: errorMessage }), {
+        status: 500,
+      });
     }
 
     // Log activity
@@ -131,7 +134,7 @@ export async function POST(request: Request) {
         authTag: fileRecord.authTag,
         encryptedData: Array.from(new Uint8Array(encryptedData)), // Convert to array for JSON serialization
       }),
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("[v0] Download error:", error);

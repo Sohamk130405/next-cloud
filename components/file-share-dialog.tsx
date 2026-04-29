@@ -49,7 +49,7 @@ export function FileShareDialog({
       const shareToken = crypto.randomUUID();
       const expiresAt = expiryDays
         ? new Date(
-            Date.now() + Number.parseInt(expiryDays) * 24 * 60 * 60 * 1000
+            Date.now() + Number.parseInt(expiryDays) * 24 * 60 * 60 * 1000,
           )
         : null;
 
@@ -142,7 +142,7 @@ export function FileShareDialog({
 
   useEffect(() => {
     fetchShareLinks();
-  }, []);
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -229,7 +229,7 @@ export function FileShareDialog({
                             size="icon"
                             onClick={() =>
                               copyToClipboard(
-                                `${window.location.origin}/share/${share.shareToken}`
+                                `${window.location.origin}/share/${share.shareToken}`,
                               )
                             }
                             className="h-6 w-6"
