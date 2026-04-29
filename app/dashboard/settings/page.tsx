@@ -11,12 +11,24 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Lock,
   Chrome,
   Trash2,
   AlertCircle,
   CheckCircle,
   Loader,
+  ShieldCheck,
+  User,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,6 +45,7 @@ export default function SettingsPage() {
   const [isCheckingGoogle, setIsCheckingGoogle] = useState(true);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     checkGoogleStatus();
@@ -55,7 +68,7 @@ export default function SettingsPage() {
     if (!newPassword || !oldPassword) {
       toast({
         title: "Error",
-        description: "Passwords must match",
+        description: "Enter your current and new encryption passwords",
         variant: "destructive",
       });
       return;
@@ -173,12 +186,6 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete your account and all files? This action cannot be undone."
-    );
-
-    if (!confirmed) return;
-
     setIsDeleting(true);
     try {
       const response = await fetch("/api/settings/delete-account", {
@@ -206,212 +213,237 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your account and security preferences
-        </p>
-      </div>
-
-      {/* User Info */}
-      <Card className="p-6 border-border">
-        <h2 className="text-lg font-semibold text-foreground mb-4">
-          Account Information
-        </h2>
-        <Separator className="mb-6 bg-border" />
-
-        <div className="space-y-3">
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-background to-accent/10 p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">Email</p>
-            <p className="font-medium text-foreground">
+            <Badge variant="secondary" className="mb-3 gap-1">
+              <ShieldCheck className="h-3 w-3" />
+              Vault controls
+            </Badge>
+            <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Keep the account surface small: Drive connection, encryption
+              password, and account lifecycle controls.
+            </p>
+          </div>
+          <div className="rounded-xl border border-border bg-background/70 p-4">
+            <p className="text-xs uppercase text-muted-foreground">Signed in as</p>
+            <p className="mt-1 max-w-[18rem] truncate text-sm font-medium">
               {user?.emailAddresses[0]?.emailAddress}
             </p>
           </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Name</p>
-            <p className="font-medium text-foreground">
-              {user?.firstName || "User"}
-            </p>
-          </div>
         </div>
-      </Card>
+      </div>
 
-      {/* Security Settings */}
-      <Card className="p-6 border-border">
-        <div className="flex items-center gap-2 mb-4">
-          <Lock className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">
-            Security Settings
-          </h2>
-        </div>
-        <Separator className="mb-6 bg-border" />
-
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Change your encryption password. All existing files will be
-            re-encrypted with the new password.
-          </p>
-
-          <div>
-            <Label
-              htmlFor="new-password"
-              className="text-foreground font-medium"
-            >
-              New Encryption Password
-            </Label>
-            <Input
-              id="new-password"
-              type="password"
-              placeholder="Enter new password (min. 8 characters)"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="mt-2 bg-card border-border"
-              disabled={isSaving}
-            />
-          </div>
-
-          <div>
-            <Label
-              htmlFor="old-password"
-              className="text-foreground font-medium"
-            >
-              Old Encryption Password
-            </Label>
-            <Input
-              id="old-password"
-              type="password"
-              placeholder="Enter old password"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              className="mt-2 bg-card border-border"
-              disabled={isSaving}
-            />
-          </div>
-
-          <Button
-            onClick={handleChangePassword}
-            disabled={!newPassword || !oldPassword || isSaving}
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            {isSaving ? "Updating..." : "Update Password"}
-          </Button>
-        </div>
-      </Card>
-
-      {/* Google Drive Integration */}
-      <Card className="p-6 border-border">
-        <div className="flex items-center gap-2 mb-4">
-          <Chrome className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">
-            Google Drive Integration
-          </h2>
-        </div>
-        <Separator className="mb-6 bg-border" />
-
-        <div className="space-y-4">
-          {/* Status Card */}
-          <div className="flex items-center justify-between p-4 bg-muted/40 rounded-lg border border-border">
+      <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="space-y-6">
+          <Card className="border-border p-6 shadow-sm">
             <div className="flex items-center gap-3">
-              {isCheckingGoogle ? (
-                <>
-                  <Loader className="w-5 h-5 text-muted-foreground animate-spin" />
-                  <div>
-                    <p className="font-medium text-foreground">
-                      Checking status...
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {googleConnected ? (
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <AlertCircle className="w-5 h-5 text-muted-foreground" />
-                  )}
-                  <div>
-                    <p className="font-medium text-foreground">
-                      Google Drive Status
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {googleConnected
-                        ? "Connected to your Google Drive"
-                        : "Not connected"}
-                    </p>
-                  </div>
-                </>
-              )}
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <User className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Account
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Clerk handles authentication and sessions.
+                </p>
+              </div>
             </div>
-            <Badge
-              variant={googleConnected ? "default" : "secondary"}
-              className={googleConnected ? "bg-green-600" : ""}
-            >
-              {googleConnected ? "Connected" : "Disconnected"}
-            </Badge>
-          </div>
+            <Separator className="my-5 bg-border" />
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Name</p>
+                <p className="font-medium text-foreground">
+                  {user?.fullName || user?.firstName || "SecureVault user"}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Email</p>
+                <p className="break-words font-medium text-foreground">
+                  {user?.emailAddresses[0]?.emailAddress}
+                </p>
+              </div>
+            </div>
+          </Card>
 
-          {/* Action Buttons */}
-          {!googleConnected ? (
+          <Card className="border-destructive/30 bg-destructive/5 p-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Delete account
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Permanently remove account data and encrypted file records.
+                </p>
+              </div>
+            </div>
             <Button
-              onClick={handleConnectGoogle}
-              disabled={isConnectingGoogle || isCheckingGoogle}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-            >
-              {isConnectingGoogle ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Chrome className="w-4 h-4" />
-                  Connect Google Drive
-                </>
-              )}
-            </Button>
-          ) : (
-            <Button
+              onClick={() => setDeleteDialogOpen(true)}
+              disabled={isDeleting}
               variant="outline"
-              onClick={handleDisconnectGoogle}
-              className="w-full text-destructive hover:bg-destructive/10 border-destructive/30 bg-transparent"
+              className="mt-5 w-full border-destructive/30 bg-background/60 text-destructive hover:bg-destructive/10"
             >
-              <AlertCircle className="w-4 h-4 mr-2" />
-              Disconnect Google Drive
+              <Trash2 className="mr-2 h-4 w-4" />
+              {isDeleting ? "Deleting..." : "Delete Account"}
             </Button>
-          )}
-
-          <p className="text-xs text-muted-foreground bg-accent/5 p-3 rounded-lg border border-accent/20">
-            Your files will be encrypted before being uploaded to your Google
-            Drive. Only you can decrypt them with your password.
-          </p>
+          </Card>
         </div>
-      </Card>
 
-      {/* Danger Zone */}
-      <Card className="p-6 border-destructive/30 bg-destructive/5">
-        <div className="flex items-center gap-2 mb-4">
-          <AlertCircle className="w-5 h-5 text-destructive" />
-          <h2 className="text-lg font-semibold text-foreground">Danger Zone</h2>
-        </div>
-        <Separator className="mb-6 bg-border" />
+        <div className="space-y-6">
+          <Card className="border-border p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Chrome className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Google Drive
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Storage for encrypted file blobs.
+                  </p>
+                </div>
+              </div>
+              <Badge
+                variant={googleConnected ? "default" : "secondary"}
+                className={googleConnected ? "bg-emerald-600" : ""}
+              >
+                {googleConnected ? "Connected" : "Disconnected"}
+              </Badge>
+            </div>
+            <Separator className="my-5 bg-border" />
+            <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <div className="flex items-start gap-3">
+                {isCheckingGoogle ? (
+                  <Loader className="mt-0.5 h-5 w-5 animate-spin text-muted-foreground" />
+                ) : googleConnected ? (
+                  <CheckCircle className="mt-0.5 h-5 w-5 text-emerald-600" />
+                ) : (
+                  <AlertCircle className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                )}
+                <div>
+                  <p className="font-medium text-foreground">
+                    {isCheckingGoogle
+                      ? "Checking connection..."
+                      : googleConnected
+                        ? "Drive is ready"
+                        : "Connect Drive to use uploads"}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Files are encrypted before upload and stored in your Drive
+                    app folder.
+                  </p>
+                </div>
+              </div>
+            </div>
+            {!googleConnected ? (
+              <Button
+                onClick={handleConnectGoogle}
+                disabled={isConnectingGoogle || isCheckingGoogle}
+                className="mt-5 w-full gap-2"
+              >
+                {isConnectingGoogle ? (
+                  <Loader className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Chrome className="h-4 w-4" />
+                )}
+                {isConnectingGoogle ? "Connecting..." : "Connect Google Drive"}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={handleDisconnectGoogle}
+                className="mt-5 w-full border-destructive/30 bg-transparent text-destructive hover:bg-destructive/10"
+              >
+                <AlertCircle className="mr-2 h-4 w-4" />
+                Disconnect Google Drive
+              </Button>
+            )}
+          </Card>
 
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Deleting your account will permanently remove all your encrypted
-            files and account data. This action cannot be undone.
-          </p>
-          <Button
-            onClick={handleDeleteAccount}
-            disabled={isDeleting}
-            variant="outline"
-            className="w-full text-destructive hover:bg-destructive/10 border-destructive/30 bg-transparent"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            {isDeleting ? "Deleting..." : "Delete Account & All Files"}
-          </Button>
+          <Card className="border-border p-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Lock className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Encryption password
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Change the password used to decrypt your files.
+                </p>
+              </div>
+            </div>
+            <Separator className="my-5 bg-border" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="old-password" className="text-foreground">
+                  Current password
+                </Label>
+                <Input
+                  id="old-password"
+                  type="password"
+                  placeholder="Current encryption password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  className="mt-2 bg-card border-border"
+                  disabled={isSaving}
+                />
+              </div>
+              <div>
+                <Label htmlFor="new-password" className="text-foreground">
+                  New password
+                </Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  placeholder="At least 8 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="mt-2 bg-card border-border"
+                  disabled={isSaving}
+                />
+              </div>
+            </div>
+            <Button
+              onClick={handleChangePassword}
+              disabled={!newPassword || !oldPassword || isSaving}
+              className="mt-5 w-full"
+            >
+              {isSaving ? "Updating..." : "Update Encryption Password"}
+            </Button>
+          </Card>
         </div>
-      </Card>
+      </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete your SecureVault account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes your account data and encrypted file
+              records. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAccount}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete account
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

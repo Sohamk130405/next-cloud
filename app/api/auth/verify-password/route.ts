@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { users, userKeys } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword } from "@/lib/crypto-utils";
+import { protectWithArcjet } from "@/lib/arcjet";
 
 export async function POST(request: Request) {
   try {
@@ -10,6 +11,9 @@ export async function POST(request: Request) {
     if (!userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const blocked = await protectWithArcjet(request, "auth", userId);
+    if (blocked) return blocked;
 
     const user = await db.query.users.findFirst({
       where: eq(users.clerkId, userId),

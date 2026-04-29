@@ -3,7 +3,7 @@ import { getReEncryptionJobStatus } from "@/lib/utils/file-reencryption";
 
 export async function GET(
   request: Request,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> },
 ) {
   try {
     const { userId } = await auth();
@@ -13,7 +13,7 @@ export async function GET(
       });
     }
 
-    const { jobId } = params;
+    const { jobId } = await params;
 
     if (!jobId) {
       return new Response(JSON.stringify({ error: "Job ID is required" }), {

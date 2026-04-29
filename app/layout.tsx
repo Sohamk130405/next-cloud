@@ -26,7 +26,23 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <body className={`font-sans antialiased`}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            themes={[
+              "light",
+              "dark",
+              "ocean-light",
+              "ocean-dark",
+              "forest-light",
+              "forest-dark",
+              "rose-light",
+              "rose-dark",
+              "slate-light",
+              "slate-dark",
+            ]}
+          >
             {children}
             <Toaster />
           </ThemeProvider>

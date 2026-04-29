@@ -8,12 +8,16 @@ import {
   activityLogs,
 } from "@/db/schema";
 import { eq, sql, and } from "drizzle-orm";
+import { protectWithArcjet } from "@/lib/arcjet";
 
 export async function GET(request: Request) {
   try {
     const { userId } = await auth();
     if (!userId)
       return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    const blocked = await protectWithArcjet(request, "analytics", userId);
+    if (blocked) return blocked;
 
     const user = await db.query.users.findFirst({
       where: eq(users.clerkId, userId),

@@ -8,29 +8,12 @@ import {
   getClientIp,
   getUserAgent,
 } from "@/lib/utils/activity-logger";
+import { protectWithArcjet } from "@/lib/arcjet";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return new Response(JSON.stringify({ error: "Unauthorized Access" }), {
-        status: 401,
-      });
-    }
-
-    const user = await db.query.users.findFirst({
-      where: eq(users.clerkId, userId),
-    });
-
-    if (!user) {
-      return new Response(JSON.stringify({ error: "User not found" }), {
-        status: 404,
-      });
-    }
-
     const { fileId, token } = await request.json();
 
     if (!fileId) {
@@ -40,8 +23,12 @@ export async function POST(request: Request) {
     }
 
     let fileRecord;
+    let ownerId: string;
+    let shareId: string | undefined;
     if (token) {
-      // Public share download - verify share token first
+      const blocked = await protectWithArcjet(request, "download", `share:${token}`);
+      if (blocked) return blocked;
+
       const shareRecord = await db.query.shareLinks.findFirst({
         where: eq(shareLinks.shareToken, token),
       });
@@ -72,19 +59,44 @@ export async function POST(request: Request) {
         );
       }
 
+      if (shareRecord.fileId !== fileId) {
+        return new Response(JSON.stringify({ error: "Invalid share token" }), {
+          status: 404,
+        });
+      }
+
       fileRecord = await db.query.files.findFirst({
         where: eq(files.id, shareRecord.fileId),
       });
 
-      await db
-        .update(shareLinks)
-        .set({ downloadCount: (shareRecord.downloadCount || 0) + 1 })
-        .where(eq(shareLinks.id, shareRecord.id));
+      ownerId = shareRecord.ownerId;
+      shareId = shareRecord.id;
     } else {
-      // Authenticated user download
+      const { userId } = await auth();
+
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "Unauthorized Access" }), {
+          status: 401,
+        });
+      }
+
+      const blocked = await protectWithArcjet(request, "download", userId);
+      if (blocked) return blocked;
+
+      const user = await db.query.users.findFirst({
+        where: eq(users.clerkId, userId),
+      });
+
+      if (!user) {
+        return new Response(JSON.stringify({ error: "User not found" }), {
+          status: 404,
+        });
+      }
+
       fileRecord = await db.query.files.findFirst({
         where: and(eq(files.id, fileId), eq(files.userId, user.id)),
       });
+      ownerId = user.id;
     }
 
     if (!fileRecord) {
@@ -96,7 +108,7 @@ export async function POST(request: Request) {
     let encryptedData: ArrayBuffer;
     try {
       encryptedData = await downloadFromGoogleDrive(
-        user.id,
+        ownerId,
         fileRecord.driveFileId!,
       );
       console.log(
@@ -114,11 +126,23 @@ export async function POST(request: Request) {
       });
     }
 
+    if (shareId) {
+      const shareRecord = await db.query.shareLinks.findFirst({
+        where: eq(shareLinks.id, shareId),
+      });
+
+      await db
+        .update(shareLinks)
+        .set({ downloadCount: (shareRecord?.downloadCount || 0) + 1 })
+        .where(eq(shareLinks.id, shareId));
+    }
+
     // Log activity
     await logActivity({
-      userId: user.id,
+      userId: ownerId,
       actionType: "download",
       fileId: fileRecord.id,
+      shareId,
       description: `Downloaded file: ${fileRecord.fileName}`,
       ipAddress: getClientIp(request),
       userAgent: getUserAgent(request),

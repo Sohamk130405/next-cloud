@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { users, activityLogs } from "@/db/schema";
 import { eq, and, sql, desc, gte } from "drizzle-orm";
+import { protectWithArcjet } from "@/lib/arcjet";
 
 export async function GET(request: Request) {
   try {
@@ -9,9 +10,18 @@ export async function GET(request: Request) {
     if (!userId)
       return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+    const blocked = await protectWithArcjet(request, "analytics", userId);
+    if (blocked) return blocked;
+
     const { searchParams } = new URL(request.url);
-    const days = Number.parseInt(searchParams.get("days") || "30");
-    const limit = Number.parseInt(searchParams.get("limit") || "50");
+    const days = Math.min(
+      Math.max(Number.parseInt(searchParams.get("days") || "30", 10), 1),
+      365,
+    );
+    const limit = Math.min(
+      Math.max(Number.parseInt(searchParams.get("limit") || "50", 10), 1),
+      100,
+    );
 
     const user = await db.query.users.findFirst({
       where: eq(users.clerkId, userId),
@@ -72,6 +82,9 @@ export async function POST(request: Request) {
     const { userId } = await auth();
     if (!userId)
       return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    const blocked = await protectWithArcjet(request, "analytics", userId);
+    if (blocked) return blocked;
 
     const { actionType, fileId, shareId, description } = await request.json();
 

@@ -1,202 +1,272 @@
 "use client";
+
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Lock, Shield, CloudOff, ArrowRight } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
+import {
+  ArrowRight,
+  Calendar,
+  CheckCircle2,
+  Cloud,
+  Download,
+  FileImage,
+  FileText,
+  KeyRound,
+  Lock,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+const files = [
+  { name: "product-roadmap.pdf", type: "PDF", size: "2.4 MB", icon: FileText },
+  { name: "launch-assets.zip", type: "Archive", size: "84 MB", icon: FileImage },
+  { name: "financial-model.xlsx", type: "Sheet", size: "918 KB", icon: FileText },
+];
+
+const features = [
+  {
+    icon: Lock,
+    title: "Client-side encryption",
+    copy: "Files are encrypted with your password before upload, so storage only receives protected data.",
+  },
+  {
+    icon: Cloud,
+    title: "Your Google Drive",
+    copy: "SecureVault uses your Drive app folder instead of locking you into another storage silo.",
+  },
+  {
+    icon: Calendar,
+    title: "Controlled sharing",
+    copy: "Create public links with expiry dates and download limits for safer handoffs.",
+  },
+];
 
 export default function LandingPage() {
   const { isSignedIn, isLoaded } = useUser();
+  const primaryHref = isLoaded && isSignedIn ? "/dashboard" : "/sign-up";
 
   return (
     <main className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+      <nav className="fixed top-0 z-50 w-full border-b border-border bg-background/85 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+              <Lock className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="block text-base font-semibold text-foreground">
+                SecureVault
+              </span>
+              <span className="hidden text-xs text-muted-foreground sm:block">
+                Encrypted Drive storage
+              </span>
+            </div>
+          </Link>
+
           <div className="flex items-center gap-2">
-            <Lock className="w-6 h-6 text-primary" />
-            <span className="text-xl font-bold text-foreground">VaultSafe</span>
-          </div>
-          <div className="flex gap-4">
             {isLoaded && isSignedIn ? (
-              <Link href="/dashboard">
-                <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  Dashboard
-                </Button>
-              </Link>
+              <Button asChild>
+                <Link href="/dashboard">Dashboard</Link>
+              </Button>
             ) : (
               <>
-                <Link href="/sign-in">
-                  <Button
-                    variant="ghost"
-                    className="text-foreground hover:bg-muted"
-                  >
-                    Sign In
-                  </Button>
-                </Link>
-                <Link href="/sign-up">
-                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                    Get Started
-                  </Button>
-                </Link>
+                <Button asChild variant="ghost" className="hidden sm:inline-flex">
+                  <Link href="/sign-in">Sign In</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/sign-up">Get Started</Link>
+                </Button>
               </>
             )}
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 text-center">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <div className="inline-block px-4 py-2 rounded-full bg-accent/10 border border-accent/20">
-            <p className="text-sm font-medium text-accent">
-              Military-Grade Encryption
+      <section className="px-4 pb-16 pt-28 sm:px-6 lg:px-8 lg:pb-24 lg:pt-32">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
+          <div>
+            <Badge variant="secondary" className="mb-5 gap-1">
+              <Sparkles className="h-3 w-3" />
+              Private files, familiar storage
+            </Badge>
+            <h1 className="max-w-4xl text-4xl font-bold leading-tight tracking-tight text-foreground sm:text-6xl">
+              Encrypted file storage that lives in your Google Drive.
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+              SecureVault encrypts media and documents before upload, then gives
+              you previews, downloads, and controlled share links from one clean
+              workspace.
             </p>
-          </div>
 
-          <h1 className="text-5xl sm:text-6xl font-bold text-foreground text-balance leading-tight">
-            Your files, encrypted. Your privacy, protected.
-          </h1>
-
-          <p className="text-xl text-muted-foreground text-balance max-w-2xl mx-auto leading-relaxed">
-            End-to-end encrypted file storage with zero-knowledge architecture.
-            Store sensitive documents, media, and backups with absolute privacy.
-          </p>
-
-          <div className="flex gap-4 justify-center pt-4">
-            <Link href="/sign-up">
-              <Button
-                size="lg"
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                Start Free Trial
-                <ArrowRight className="w-4 h-4 ml-2" />
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Button asChild size="lg" className="h-11 gap-2">
+                <Link href={primaryHref}>
+                  {isLoaded && isSignedIn ? "Open Dashboard" : "Create Your Vault"}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
-            </Link>
-            <a href="#features">
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-border text-foreground hover:bg-muted bg-transparent"
-              >
-                Learn More
+              <Button asChild size="lg" variant="outline" className="h-11 bg-background/70">
+                <a href="#features">View Features</a>
               </Button>
-            </a>
-          </div>
-        </div>
+            </div>
 
-        {/* Hero Visual */}
-        <div className="mt-16">
-          <div className="inline-block relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-accent/20 blur-3xl rounded-full"></div>
-            <div className="relative bg-gradient-to-br from-primary/5 to-accent/5 border border-primary/10 rounded-2xl p-12 min-h-64">
-              <div className="flex items-center justify-center h-full">
-                <Lock className="w-24 h-24 text-primary/30" />
-              </div>
+            <div className="mt-8 grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
+              {["AES-256-GCM", "Drive app folder", "Expiring links"].map(
+                (item) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-2 rounded-xl border border-border bg-card/70 p-3"
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>{item}</span>
+                  </div>
+                ),
+              )}
             </div>
           </div>
+
+          <ProductPreview />
         </div>
       </section>
 
-      {/* Features Section */}
       <section
         id="features"
-        className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30 border-y border-border"
+        className="border-y border-border bg-muted/30 px-4 py-16 sm:px-6 lg:px-8"
       >
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-foreground mb-4">
-              Enterprise-Grade Security
-            </h2>
-            <p className="text-lg text-muted-foreground text-balance">
-              Built for security professionals and privacy-conscious users
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <Badge variant="outline" className="mb-3">
+                Workflow
+              </Badge>
+              <h2 className="text-3xl font-bold tracking-tight">
+                Built around the file actions you actually use
+              </h2>
+            </div>
+            <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+              Upload, preview, share, and recover files without exposing raw
+              content to storage providers.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="space-y-4 p-6 rounded-xl border border-border bg-card hover:border-primary/50 transition-colors">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Lock className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground">
-                End-to-End Encrypted
-              </h3>
-              <p className="text-muted-foreground">
-                AES-256-GCM encryption ensures your files are encrypted before
-                leaving your device. Only you hold the keys.
-              </p>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="space-y-4 p-6 rounded-xl border border-border bg-card hover:border-primary/50 transition-colors">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <CloudOff className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground">
-                Zero-Knowledge Design
-              </h3>
-              <p className="text-muted-foreground">
-                We cannot access your files. No master keys, no backdoors, no
-                government access. Your data remains truly private.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="space-y-4 p-6 rounded-xl border border-border bg-card hover:border-primary/50 transition-colors">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground">
-                Google Drive Integration
-              </h3>
-              <p className="text-muted-foreground">
-                Seamlessly backup your encrypted files to your Google Drive. Use
-                your existing storage without compromises.
-              </p>
-            </div>
+          <div className="grid gap-5 md:grid-cols-3">
+            {features.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <div
+                  key={feature.title}
+                  className="rounded-2xl border border-border bg-card p-6 shadow-sm transition-colors hover:border-primary/30"
+                >
+                  <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-lg font-semibold">{feature.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                    {feature.copy}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center space-y-8">
-          <div className="space-y-4">
-            <h2 className="text-4xl font-bold text-foreground">
-              Ready to secure your files?
-            </h2>
-            <p className="text-lg text-muted-foreground">
-              Join thousands of users protecting their data with military-grade
-              encryption.
-            </p>
-          </div>
-
-          <div className="flex gap-4 justify-center">
-            <Link href="/sign-up">
-              <Button
-                size="lg"
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                Create Free Account
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-border py-12 px-4 sm:px-6 lg:px-8 bg-muted/30">
-        <div className="max-w-6xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Lock className="w-5 h-5 text-primary" />
-            <span className="font-semibold text-foreground">VaultSafe</span>
-          </div>
-          <p className="text-muted-foreground text-sm">
-            Privacy-first encrypted file storage. Your data, your control.
+      <section className="px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-5xl flex-col items-center rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-background to-accent/10 p-8 text-center shadow-sm sm:p-10">
+          <KeyRound className="mb-4 h-9 w-9 text-primary" />
+          <h2 className="text-3xl font-bold tracking-tight">
+            Keep ownership of your files and your storage.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Start with a private vault, connect Drive when you are ready, and
+            use SecureVault as the encrypted layer on top.
           </p>
+          <Button asChild size="lg" className="mt-7 h-11 gap-2">
+            <Link href={primaryHref}>
+              {isLoaded && isSignedIn ? "Go to Dashboard" : "Start Securely"}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
-      </footer>
+      </section>
     </main>
+  );
+}
+
+function ProductPreview() {
+  return (
+    <div className="relative">
+      <div className="rounded-2xl border border-border bg-card p-3 shadow-2xl shadow-foreground/10">
+        <div className="rounded-xl border border-border bg-background">
+          <div className="flex items-center justify-between border-b border-border p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">SecureVault</p>
+                <p className="text-xs text-muted-foreground">
+                  Google Drive connected
+                </p>
+              </div>
+            </div>
+            <Badge className="bg-emerald-600">Protected</Badge>
+          </div>
+
+          <div className="grid gap-4 p-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <p className="text-sm font-semibold">Encryption status</p>
+              <div className="mt-5 space-y-4">
+                {[
+                  ["Client encryption", "Complete"],
+                  ["Drive upload", "Synced"],
+                  ["Share policy", "Limited"],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                    <span className="text-xs font-medium">{value}</span>
+                  </div>
+                ))}
+              </div>
+              <Button className="mt-6 w-full gap-2">
+                <Upload className="h-4 w-4" />
+                Upload File
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {files.map((file) => {
+                const Icon = file.icon;
+                return (
+                  <div
+                    key={file.name}
+                    className="flex items-center justify-between rounded-xl border border-border bg-card p-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {file.type} · {file.size}
+                        </p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" title="Download">
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

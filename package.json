@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@arcjet/next": "^1.4.0",
     "@aws-sdk/client-rds-data": "latest",
     "@clerk/nextjs": "latest",
     "@cloudflare/workers-types": "latest",
